@@ -7,11 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"unsafe"
 
 	ps "github.com/elastic/go-sysinfo"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // ok
+	"github.com/shirou/gopsutil/disk"
 	svc "github.com/shirou/gopsutil/winservices"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/windows"
 )
 
 // WindowsAgent struct
@@ -231,6 +234,54 @@ func (a *WindowsAgent) GetServices() []WindowsService {
 				}
 			}
 		}
+	}
+	return ret
+}
+
+// Disk holds physical disk info
+type Disk struct {
+	Device  string  `json:"device"`
+	Fstype  string  `json:"fstype"`
+	Total   uint64  `json:"total"`
+	Used    uint64  `json:"used"`
+	Free    uint64  `json:"free"`
+	Percent float64 `json:"percent"`
+}
+
+// GetDisks returns a list of fixed disks
+func (a *WindowsAgent) GetDisks() []Disk {
+	ret := make([]Disk, 0)
+	partitions, err := disk.Partitions(false)
+	if err != nil {
+		a.Logger.Debugln(err)
+		return ret
+	}
+
+	var getDriveType = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetDriveTypeW")
+
+	for _, p := range partitions {
+		typepath, _ := windows.UTF16PtrFromString(p.Device)
+		typeval, _, _ := getDriveType.Call(uintptr(unsafe.Pointer(typepath)))
+		// https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdrivetypea
+		if typeval != 3 {
+			continue
+		}
+
+		usage, err := disk.Usage(p.Mountpoint)
+		if err != nil {
+			a.Logger.Debugln(err)
+			continue
+		}
+
+		d := Disk{
+			Device:  p.Device,
+			Fstype:  p.Fstype,
+			Total:   usage.Total,
+			Used:    usage.Used,
+			Free:    usage.Free,
+			Percent: usage.UsedPercent,
+		}
+		ret = append(ret, d)
 	}
 	return ret
 }

@@ -3,7 +3,7 @@
     "[go]": {
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
-            "source.organizeImports": true,
+            "source.organizeImports": false,
         },
         // Optional: Disable snippets, as they conflict with completion ranking.
         "editor.snippetSuggestions": "none",
