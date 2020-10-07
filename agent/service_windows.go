@@ -72,7 +72,7 @@ func (a *WindowsAgent) RunAsService() {
 			Services: a.GetServices(),
 			PublicIP: PublicIP(),
 			Disks:    a.GetDisks(),
-			Username: "todo",
+			Username: LoggedOnUser(),
 			Version:  a.Version,
 			BootTime: BootTime(),
 		}

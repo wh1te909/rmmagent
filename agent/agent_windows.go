@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -374,6 +375,24 @@ func DisableSleepHibernate() {
 	}
 	wg.Wait()
 	CMDNoOutput("powercfg -S SCHEME_CURRENT", timeout)
+}
+
+// LoggedOnUser returns active logged on console user
+func LoggedOnUser() string {
+	out, err := exec.Command("query", "session").Output()
+	if err != nil {
+		return "None"
+	}
+	lines := strings.Split(string(out), "\n")
+	for _, i := range lines {
+		if strings.Contains(i, "console") && strings.Contains(i, "Active") {
+			words := strings.Fields(i)
+			if len(words) > 3 {
+				return words[1]
+			}
+		}
+	}
+	return "None"
 }
 
 //RecoverSalt recovers salt minion
