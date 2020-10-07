@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	ps "github.com/elastic/go-sysinfo"
@@ -55,6 +57,27 @@ func MakeRequest(r *APIRequest) (*resty.Response, error) {
 	return resp, nil
 }
 
+// PublicIP returns the agent's public ip
+// Tries 2 times before giving up
+func PublicIP() string {
+	client.SetCloseConnection(true)
+	client.SetTimeout(7 * time.Second)
+	urls := []string{"https://ifconfig.co/ip", "https://icanhazip.com"}
+
+	for _, url := range urls {
+		r, err := client.R().Get(url)
+		if err != nil {
+			continue
+		}
+		ip := StripAll(r.String())
+		if !IsValidIP(ip) {
+			continue
+		}
+		return ip
+	}
+	return "error"
+}
+
 // GenerateAgentID creates and returns a unique agent id
 func GenerateAgentID(hostname string) string {
 	rand.Seed(time.Now().UnixNano())
@@ -98,4 +121,17 @@ func BootTime() int64 {
 	host, _ := ps.Host()
 	info := host.Info()
 	return info.BootTime.Unix()
+}
+
+// IsValidIP checks for a valid ipv4 or ipv6
+func IsValidIP(ip string) bool {
+	return net.ParseIP(ip) != nil
+}
+
+// StripAll strips all whitespace and newline chars
+func StripAll(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "\n")
+	s = strings.Trim(s, "\r")
+	return s
 }

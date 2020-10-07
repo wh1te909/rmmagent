@@ -57,6 +57,7 @@ func (a *WindowsAgent) RunAsService() {
 		Headers: a.Headers,
 		Timeout: 15,
 	}
+	a.Logger.Debugln(request1)
 
 	_, err := MakeRequest(request1)
 	if err != nil {
@@ -69,7 +70,7 @@ func (a *WindowsAgent) RunAsService() {
 		patchPayload := HelloPatch{
 			Agentid:  a.AgentID,
 			Services: a.GetServices(),
-			PublicIP: "todo",
+			PublicIP: PublicIP(),
 			Disks:    a.GetDisks(),
 			Username: "todo",
 			Version:  a.Version,
@@ -83,6 +84,7 @@ func (a *WindowsAgent) RunAsService() {
 			Headers: a.Headers,
 			Timeout: 15,
 		}
+		a.Logger.Debugln(request2)
 
 		r, err := MakeRequest(request2)
 		if err != nil {
