@@ -24,10 +24,10 @@ type HelloPatch struct {
 	Agentid  string           `json:"agent_id"`
 	Services []WindowsService `json:"services"`
 	PublicIP string           `json:"public_ip"`
-	Disks    string
-	Username string
-	Version  string `json:"version"`
-	BootTime int64  `json:"boot_time"`
+	Disks    []Disk           `json:"disks"`
+	Username string           `json:"logged_in_username"`
+	Version  string           `json:"version"`
+	BootTime int64            `json:"boot_time"`
 }
 
 // RunAsService tacticalagent windows nssm service
@@ -70,7 +70,7 @@ func (a *WindowsAgent) RunAsService() {
 			Agentid:  a.AgentID,
 			Services: a.GetServices(),
 			PublicIP: "todo",
-			Disks:    "todo",
+			Disks:    a.GetDisks(),
 			Username: "todo",
 			Version:  a.Version,
 			BootTime: BootTime(),

@@ -2,11 +2,15 @@
 package agent
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
+	"time"
 	"unsafe"
 
 	ps "github.com/elastic/go-sysinfo"
@@ -15,7 +19,10 @@ import (
 	svc "github.com/shirou/gopsutil/winservices"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
+
+var wg sync.WaitGroup
 
 // WindowsAgent struct
 type WindowsAgent struct {
@@ -284,6 +291,89 @@ func (a *WindowsAgent) GetDisks() []Disk {
 		ret = append(ret, d)
 	}
 	return ret
+}
+
+// CMDShellNoOutput runs a command with shell=True, does not return output
+func CMDShellNoOutput(arg string, timeout int) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "cmd.exe", "/C", arg)
+	cmd.Run()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return
+	}
+}
+
+// CMDNoOutput runs a command with shell=False, does not return output
+func CMDNoOutput(command string, timeout int) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command)
+	cmd.Run()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		cmd.Process.Kill()
+		return
+	}
+}
+
+// EnablePing enables ping
+func EnablePing() {
+	fmt.Println("Enabling ping...")
+	cmd := `netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol=icmpv4:8,any dir=in action=allow`
+	CMDNoOutput(cmd, 5)
+}
+
+// EnableRDP enabled Remote Desktop
+func EnableRDP() {
+	fmt.Println("Enabling RDP...")
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Terminal Server`, registry.ALL_ACCESS)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer k.Close()
+
+	err = k.SetDWordValue("fDenyTSConnections", 0)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	cmd := `netsh advfirewall firewall set rule group="remote desktop" new enable=Yes`
+	CMDNoOutput(cmd, 5)
+}
+
+// DisableSleepHibernate disables sleep and hibernate
+func DisableSleepHibernate() {
+	fmt.Println("Disabling sleep/hibernate...")
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager\Power`, registry.ALL_ACCESS)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer k.Close()
+
+	err = k.SetDWordValue("HiberbootEnabled", 0)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	currents := []string{"ac", "dc"}
+	timeout := 5
+	for _, i := range currents {
+		wg.Add(1)
+		go func(c string) {
+			defer wg.Done()
+			CMDNoOutput(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), timeout)
+			CMDNoOutput(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), timeout)
+			CMDNoOutput(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), timeout)
+			CMDNoOutput(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), timeout)
+			CMDNoOutput(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), timeout)
+		}(i)
+	}
+	wg.Wait()
+	CMDNoOutput("powercfg -S SCHEME_CURRENT", timeout)
 }
 
 //RecoverSalt recovers salt minion
