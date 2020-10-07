@@ -197,6 +197,24 @@ func serviceStatusText(num uint32) string {
 	}
 }
 
+// https://docs.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicestartmode?view=dotnet-plat-ext-3.1
+func serviceStartType(num uint32) string {
+	switch num {
+	case 0:
+		return "Boot"
+	case 1:
+		return "System"
+	case 2:
+		return "Automatic"
+	case 3:
+		return "Manual"
+	case 4:
+		return "Disabled"
+	default:
+		return "Unknown"
+	}
+}
+
 // WindowsService holds windows service info
 type WindowsService struct {
 	Name        string `json:"name"`
@@ -206,6 +224,7 @@ type WindowsService struct {
 	Description string `json:"description"`
 	Username    string `json:"username"`
 	PID         uint32 `json:"pid"`
+	StartType   string `json:"start_type"`
 }
 
 // GetServices returns a list of windows services
@@ -231,6 +250,7 @@ func (a *WindowsAgent) GetServices() []WindowsService {
 					Description: conf.Description,
 					Username:    conf.ServiceStartName,
 					PID:         uint32(srv.Status.Pid),
+					StartType:   serviceStartType(uint32(conf.StartType)),
 				}
 				ret = append(ret, winsvc)
 			} else {
@@ -379,13 +399,19 @@ func DisableSleepHibernate() {
 
 // LoggedOnUser returns active logged on console user
 func LoggedOnUser() string {
-	out, err := exec.Command("query", "session").Output()
+	qwinsta := filepath.Join(os.Getenv("WINDIR"), "System32", "qwinsta.exe")
+	out, err := exec.Command(qwinsta).Output()
 	if err != nil {
 		return "None"
 	}
 	lines := strings.Split(string(out), "\n")
 	for _, i := range lines {
 		if strings.Contains(i, "console") && strings.Contains(i, "Active") {
+			words := strings.Fields(i)
+			if len(words) > 3 {
+				return words[1]
+			}
+		} else if strings.Contains(i, "rdp") && strings.Contains(i, "Active") {
 			words := strings.Fields(i)
 			if len(words) > 3 {
 				return words[1]
