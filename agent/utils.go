@@ -13,6 +13,7 @@ import (
 
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
+	"github.com/shirou/gopsutil/process"
 )
 
 var client = resty.New()
@@ -134,4 +135,26 @@ func StripAll(s string) string {
 	s = strings.Trim(s, "\n")
 	s = strings.Trim(s, "\r")
 	return s
+}
+
+// KillProc kills a process and its children
+func KillProc(pid int32) error {
+	p, err := process.NewProcess(pid)
+	if err != nil {
+		return err
+	}
+
+	children, err := p.Children()
+	if err == nil {
+		for _, child := range children {
+			if err := child.Kill(); err != nil {
+				continue
+			}
+		}
+	}
+
+	if err := p.Kill(); err != nil {
+		return err
+	}
+	return nil
 }

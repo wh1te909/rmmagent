@@ -453,6 +453,33 @@ func LoggedOnUser() string {
 	return "None"
 }
 
+// ForceKillSalt kills all salt related processes
+func (a *WindowsAgent) ForceKillSalt() {
+	pids := make([]int, 0)
+
+	procs, err := ps.Processes()
+	if err != nil {
+		return
+	}
+
+	for _, process := range procs {
+		p, err := process.Info()
+		if err != nil {
+			continue
+		}
+		if strings.ToLower(p.Name) == "python.exe" && strings.Contains(strings.ToLower(p.Exe), "salt") {
+			pids = append(pids, p.PID)
+		}
+	}
+
+	for _, pid := range pids {
+		a.Logger.Debugln("Killing salt process with pid %d", pid)
+		if err := KillProc(int32(pid)); err != nil {
+			a.Logger.Debugln(err)
+		}
+	}
+}
+
 //RecoverSalt recovers the salt minion
 func (a *WindowsAgent) RecoverSalt() {
 	saltSVC := "salt-minion"
@@ -460,6 +487,7 @@ func (a *WindowsAgent) RecoverSalt() {
 	args := []string{"stop", saltSVC}
 	CMDNoOutput(a.Nssm, args, 45)
 	WaitForService(saltSVC, "stopped", 15)
+	a.ForceKillSalt()
 	args = []string{"flushdns"}
 	CMDNoOutput("ipconfig", args, 15)
 	args = []string{"start", saltSVC}
