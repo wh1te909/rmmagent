@@ -227,6 +227,39 @@ type WindowsService struct {
 	StartType   string `json:"start_type"`
 }
 
+// WinServiceGet mimics psutils win_service_get
+func WinServiceGet(name string) (*svc.Service, error) {
+	srv, err := svc.NewService(name)
+	if err != nil {
+		return &svc.Service{}, err
+	}
+	return srv, nil
+}
+
+// WaitForService will wait for a service to be in X state for X retries
+func WaitForService(name string, status string, retries int) {
+	attempts := 0
+	for {
+		service, err := WinServiceGet(name)
+		if err != nil {
+			attempts++
+			time.Sleep(5 * time.Second)
+		} else {
+			service.GetServiceDetail()
+			stat := serviceStatusText(uint32(service.Status.State))
+			if stat != status {
+				attempts++
+				time.Sleep(5 * time.Second)
+			} else {
+				attempts = 0
+			}
+		}
+		if attempts == 0 || attempts >= retries {
+			break
+		}
+	}
+}
+
 // GetServices returns a list of windows services
 func (a *WindowsAgent) GetServices() []WindowsService {
 	ret := make([]WindowsService, 0)
@@ -328,15 +361,14 @@ func CMDShellNoOutput(arg string, timeout int) {
 }
 
 // CMDNoOutput runs a command with shell=False, does not return output
-func CMDNoOutput(command string, timeout int) {
+func CMDNoOutput(exe string, args []string, timeout int) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, command)
+	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Run()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		cmd.Process.Kill()
 		return
 	}
 }
@@ -345,10 +377,10 @@ func CMDNoOutput(command string, timeout int) {
 func EnablePing() {
 	fmt.Println("Enabling ping...")
 	cmd := `netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol=icmpv4:8,any dir=in action=allow`
-	CMDNoOutput(cmd, 5)
+	CMDShellNoOutput(cmd, 5)
 }
 
-// EnableRDP enabled Remote Desktop
+// EnableRDP enables Remote Desktop
 func EnableRDP() {
 	fmt.Println("Enabling RDP...")
 	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Terminal Server`, registry.ALL_ACCESS)
@@ -363,7 +395,7 @@ func EnableRDP() {
 	}
 
 	cmd := `netsh advfirewall firewall set rule group="remote desktop" new enable=Yes`
-	CMDNoOutput(cmd, 5)
+	CMDShellNoOutput(cmd, 5)
 }
 
 // DisableSleepHibernate disables sleep and hibernate
@@ -386,15 +418,15 @@ func DisableSleepHibernate() {
 		wg.Add(1)
 		go func(c string) {
 			defer wg.Done()
-			CMDNoOutput(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), timeout)
-			CMDNoOutput(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), timeout)
-			CMDNoOutput(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), timeout)
-			CMDNoOutput(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), timeout)
-			CMDNoOutput(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), timeout)
+			CMDShellNoOutput(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), timeout)
+			CMDShellNoOutput(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), timeout)
+			CMDShellNoOutput(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), timeout)
+			CMDShellNoOutput(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), timeout)
+			CMDShellNoOutput(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), timeout)
 		}(i)
 	}
 	wg.Wait()
-	CMDNoOutput("powercfg -S SCHEME_CURRENT", timeout)
+	CMDShellNoOutput("powercfg -S SCHEME_CURRENT", timeout)
 }
 
 // LoggedOnUser returns active logged on console user
@@ -421,10 +453,18 @@ func LoggedOnUser() string {
 	return "None"
 }
 
-//RecoverSalt recovers salt minion
+//RecoverSalt recovers the salt minion
 func (a *WindowsAgent) RecoverSalt() {
+	saltSVC := "salt-minion"
 	a.Logger.Debugln("Attempting salt recovery on", a.Hostname)
-	// TODO
+	args := []string{"stop", saltSVC}
+	CMDNoOutput(a.Nssm, args, 45)
+	WaitForService(saltSVC, "stopped", 15)
+	args = []string{"flushdns"}
+	CMDNoOutput("ipconfig", args, 15)
+	args = []string{"start", saltSVC}
+	CMDNoOutput(a.Nssm, args, 45)
+	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
 //RecoverMesh recovers mesh agent
@@ -433,8 +473,12 @@ func (a *WindowsAgent) RecoverMesh() {
 	// TODO
 }
 
-//RecoverCMD runs shell recovery command
-func (a *WindowsAgent) RecoverCMD(cmd string) {
+//RecoverCMD runs a shell recovery command
+func (a *WindowsAgent) RecoverCMD(command string) {
 	a.Logger.Debugln("Attempting shell recovery on", a.Hostname)
-	// TODO
+	a.Logger.Debugln(command)
+	cmd := exec.Command("cmd.exe", "/C", command)
+	if err := cmd.Run(); err != nil {
+		a.Logger.Debugln(err)
+	}
 }
