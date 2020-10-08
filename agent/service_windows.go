@@ -3,7 +3,6 @@ package agent
 import (
 	"encoding/json"
 	"math/rand"
-	"strings"
 	"time"
 )
 
@@ -90,7 +89,7 @@ func (a *WindowsAgent) RunAsService() {
 		if err != nil {
 			a.Logger.Debugln(err)
 		} else {
-			ret := strings.Trim(r.String(), `"`)
+			ret := DjangoStringResp(r.String())
 			if len(ret) > 0 && ret != "ok" {
 				if err := json.Unmarshal(r.Body(), &data); err != nil {
 					a.Logger.Debugln(err)

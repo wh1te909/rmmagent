@@ -2,6 +2,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -373,6 +374,26 @@ func CMDNoOutput(exe string, args []string, timeout int) {
 	}
 }
 
+// CMDWithOutput runs a command with shell=False and returns stdout and stderr
+func CMDWithOutput(exe string, args []string, timeout int) (stdout, stderr string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	var outb, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+	cmd.Run()
+	if err != nil {
+		return "", "", err
+	}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", "", ctx.Err()
+	}
+	return outb.String(), errb.String(), nil
+}
+
 // EnablePing enables ping
 func EnablePing() {
 	fmt.Println("Enabling ping...")
@@ -480,25 +501,114 @@ func (a *WindowsAgent) ForceKillSalt() {
 	}
 }
 
+// ForceKillMesh kills all mesh agent related processes
+func (a *WindowsAgent) ForceKillMesh() {
+	pids := make([]int, 0)
+
+	procs, err := ps.Processes()
+	if err != nil {
+		return
+	}
+
+	for _, process := range procs {
+		p, err := process.Info()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(strings.ToLower(p.Name), "meshagent") {
+			pids = append(pids, p.PID)
+		}
+	}
+
+	for _, pid := range pids {
+		a.Logger.Debugln("Killing mesh process with pid %d", pid)
+		if err := KillProc(int32(pid)); err != nil {
+			a.Logger.Debugln(err)
+		}
+	}
+}
+
 //RecoverSalt recovers the salt minion
 func (a *WindowsAgent) RecoverSalt() {
 	saltSVC := "salt-minion"
 	a.Logger.Debugln("Attempting salt recovery on", a.Hostname)
-	args := []string{"stop", saltSVC}
-	CMDNoOutput(a.Nssm, args, 45)
+	defer CMDNoOutput(a.Nssm, []string{"start", saltSVC}, 45)
+
+	CMDNoOutput(a.Nssm, []string{"stop", saltSVC}, 45)
 	WaitForService(saltSVC, "stopped", 15)
 	a.ForceKillSalt()
-	args = []string{"flushdns"}
-	CMDNoOutput("ipconfig", args, 15)
-	args = []string{"start", saltSVC}
-	CMDNoOutput(a.Nssm, args, 45)
+	CMDNoOutput("ipconfig", []string{"flushdns"}, 15)
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
 //RecoverMesh recovers mesh agent
 func (a *WindowsAgent) RecoverMesh() {
+	meshSVC := "mesh agent"
 	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
-	// TODO
+	defer CMDNoOutput("sc.exe", []string{"start", meshSVC}, 20)
+
+	args := []string{"stop", meshSVC}
+	CMDNoOutput("sc.exe", args, 45)
+	WaitForService(meshSVC, "stopped", 5)
+	a.ForceKillMesh()
+
+	var meshexe string
+	mesh1 := filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe")
+	mesh2 := filepath.Join(a.ProgramDir, a.MeshInstaller)
+	if FileExists(mesh1) {
+		meshexe = mesh1
+	} else {
+		meshexe = mesh2
+	}
+
+	stdout, stderr, err := CMDWithOutput(meshexe, []string{"-nodeidhex"}, 10)
+	if err != nil {
+		a.Logger.Debugln(err)
+		return
+	}
+
+	if stderr != "" {
+		a.Logger.Debugln(stderr)
+		return
+	}
+
+	if stdout == "" || strings.Contains(strings.ToLower(StripAll(stdout)), "not defined") {
+		a.Logger.Debugln("Failed to get node id hex")
+		return
+	}
+
+	url := fmt.Sprintf("%s/api/v1/%d/meshinfo/", a.Server, a.AgentPK)
+	getreq := &APIRequest{
+		URL:     url,
+		Method:  "GET",
+		Headers: a.Headers,
+		Timeout: 15,
+	}
+
+	resp, err := MakeRequest(getreq)
+	if err != nil {
+		a.Logger.Debugln(err)
+		return
+	}
+
+	a.Logger.Debugln("Local Mesh:", StripAll(stdout))
+	a.Logger.Debugln("RMM Mesh:", DjangoStringResp(resp.String()))
+	a.Logger.Debugln("Status code:", resp.StatusCode())
+
+	if resp.StatusCode() == 200 && StripAll(stdout) != DjangoStringResp(resp.String()) {
+		payload := struct {
+			NodeIDHex string `json:"nodeidhex"`
+		}{NodeIDHex: StripAll(stdout)}
+
+		patchreq := &APIRequest{
+			URL:     url,
+			Method:  "PATCH",
+			Headers: a.Headers,
+			Payload: payload,
+			Timeout: 15,
+		}
+		MakeRequest(patchreq)
+	}
 }
 
 //RecoverCMD runs a shell recovery command

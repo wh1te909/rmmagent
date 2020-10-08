@@ -158,3 +158,8 @@ func KillProc(pid int32) error {
 	}
 	return nil
 }
+
+// DjangoStringResp removes double quotes from django rest api resp
+func DjangoStringResp(resp string) string {
+	return strings.Trim(resp, `"`)
+}
