@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	ps "github.com/elastic/go-sysinfo"
+	"github.com/gonutz/w32"
 	_ "github.com/mattn/go-sqlite3" // ok
 	"github.com/shirou/gopsutil/disk"
 	svc "github.com/shirou/gopsutil/winservices"
@@ -618,5 +619,45 @@ func (a *WindowsAgent) RecoverCMD(command string) {
 	cmd := exec.Command("cmd.exe", "/C", command)
 	if err := cmd.Run(); err != nil {
 		a.Logger.Debugln(err)
+	}
+}
+
+// ShowStatus prints windows service status
+// If called from an interactive desktop, pops up a message box
+// Otherwise prints to the console
+func ShowStatus() {
+	statusMap := make(map[string]string)
+	svcs := []string{"tacticalagent", "checkrunner", "salt-minion", "mesh agent"}
+
+	for _, service := range svcs {
+		srv, err := WinServiceGet(service)
+		if err != nil {
+			statusMap[service] = "Not Installed"
+			continue
+		}
+		if derr := srv.GetServiceDetail(); derr != nil {
+			statusMap[service] = "Unknown"
+			continue
+		}
+		statusMap[service] = serviceStatusText(uint32(srv.Status.State))
+	}
+
+	window := w32.GetForegroundWindow()
+	if window != 0 {
+		_, consoleProcID := w32.GetWindowThreadProcessId(window)
+		if w32.GetCurrentProcessId() == consoleProcID {
+			w32.ShowWindow(window, w32.SW_HIDE)
+		}
+		var handle w32.HWND
+		msg := fmt.Sprintf("Agent: %s\n\nCheck Runner: %s\n\nSalt Minion: %s\n\nMesh Agent: %s",
+			statusMap["tacticalagent"], statusMap["checkrunner"],
+			statusMap["salt-minion"], statusMap["mesh agent"],
+		)
+		w32.MessageBox(handle, msg, "Tactical RMM", w32.MB_OK|w32.MB_ICONINFORMATION)
+	} else {
+		fmt.Println("Agent:", statusMap["tacticalagent"])
+		fmt.Println("Check Runner:", statusMap["checkrunner"])
+		fmt.Println("Salt Minion:", statusMap["salt-minion"])
+		fmt.Println("Mesh Agent:", statusMap["mesh agent"])
 	}
 }

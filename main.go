@@ -35,7 +35,7 @@ func main() {
 	}
 
 	if len(os.Args) == 1 {
-		// TODO show agent status
+		agent.ShowStatus()
 		return
 	}
 
