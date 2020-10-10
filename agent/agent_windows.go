@@ -276,28 +276,30 @@ func (a *WindowsAgent) GetServices() []WindowsService {
 
 	for _, s := range services {
 		srv, err := svc.NewService(s.Name)
-		if err == nil {
-			derr := srv.GetServiceDetail()
-			conf, qerr := srv.QueryServiceConfig()
-			if derr == nil && qerr == nil {
-				winsvc := WindowsService{
-					Name:        s.Name,
-					Status:      serviceStatusText(uint32(srv.Status.State)),
-					DisplayName: conf.DisplayName,
-					BinPath:     conf.BinaryPathName,
-					Description: conf.Description,
-					Username:    conf.ServiceStartName,
-					PID:         uint32(srv.Status.Pid),
-					StartType:   serviceStartType(uint32(conf.StartType)),
-				}
-				ret = append(ret, winsvc)
-			} else {
-				if derr != nil {
-					a.Logger.Debugln(derr)
-				}
-				if qerr != nil {
-					a.Logger.Debugln(qerr)
-				}
+		if err != nil {
+			continue
+		}
+
+		derr := srv.GetServiceDetail()
+		conf, qerr := srv.QueryServiceConfig()
+		if derr == nil && qerr == nil {
+			winsvc := WindowsService{
+				Name:        s.Name,
+				Status:      serviceStatusText(uint32(srv.Status.State)),
+				DisplayName: conf.DisplayName,
+				BinPath:     conf.BinaryPathName,
+				Description: conf.Description,
+				Username:    conf.ServiceStartName,
+				PID:         uint32(srv.Status.Pid),
+				StartType:   serviceStartType(uint32(conf.StartType)),
+			}
+			ret = append(ret, winsvc)
+		} else {
+			if derr != nil {
+				a.Logger.Debugln(derr)
+			}
+			if qerr != nil {
+				a.Logger.Debugln(qerr)
 			}
 		}
 	}
