@@ -30,7 +30,7 @@ type APIRequest struct {
 }
 
 // MakeRequest creates an api request to the RMM
-func MakeRequest(r *APIRequest) (*resty.Response, error) {
+func (r *APIRequest) MakeRequest() (*resty.Response, error) {
 	client.SetCloseConnection(true)
 	client.SetHeaders(r.Headers)
 	client.SetTimeout(r.Timeout * time.Second)

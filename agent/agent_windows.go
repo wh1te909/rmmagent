@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	wg           sync.WaitGroup
 	getDriveType = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetDriveTypeW")
 )
 
@@ -452,6 +451,7 @@ func DisableSleepHibernate() {
 		fmt.Println(err)
 	}
 
+	var wg sync.WaitGroup
 	currents := []string{"ac", "dc"}
 	for _, i := range currents {
 		wg.Add(1)
@@ -599,7 +599,7 @@ func (a *WindowsAgent) RecoverMesh() {
 	}
 
 	url := fmt.Sprintf("%s/api/v1/%d/meshinfo/", a.Server, a.AgentPK)
-	getreq := &APIRequest{
+	r1 := &APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -608,7 +608,7 @@ func (a *WindowsAgent) RecoverMesh() {
 		Debug:     a.Debug,
 	}
 
-	resp, err := MakeRequest(getreq)
+	resp, err := r1.MakeRequest()
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -623,7 +623,7 @@ func (a *WindowsAgent) RecoverMesh() {
 			NodeIDHex string `json:"nodeidhex"`
 		}{NodeIDHex: StripAll(stdout)}
 
-		patchreq := &APIRequest{
+		r2 := &APIRequest{
 			URL:       url,
 			Method:    "PATCH",
 			Headers:   a.Headers,
@@ -632,7 +632,7 @@ func (a *WindowsAgent) RecoverMesh() {
 			LocalCert: a.DB.Cert,
 			Debug:     a.Debug,
 		}
-		MakeRequest(patchreq)
+		r2.MakeRequest()
 	}
 }
 

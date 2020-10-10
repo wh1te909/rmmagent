@@ -49,7 +49,7 @@ func (a *WindowsAgent) RunAsService() {
 		SaltVersion: a.GetProgramVersion("salt minion"),
 	}
 
-	request1 := &APIRequest{
+	r1 := &APIRequest{
 		URL:       url,
 		Method:    "POST",
 		Payload:   postPayload,
@@ -58,9 +58,9 @@ func (a *WindowsAgent) RunAsService() {
 		LocalCert: a.DB.Cert,
 		Debug:     a.Debug,
 	}
-	a.Logger.Debugln(request1)
+	a.Logger.Debugln(r1)
 
-	_, err := MakeRequest(request1)
+	_, err := r1.MakeRequest()
 	if err != nil {
 		a.Logger.Debugln(err)
 	}
@@ -78,7 +78,7 @@ func (a *WindowsAgent) RunAsService() {
 			BootTime: BootTime(),
 		}
 
-		request2 := &APIRequest{
+		r2 := &APIRequest{
 			URL:       url,
 			Method:    "PATCH",
 			Payload:   patchPayload,
@@ -87,9 +87,9 @@ func (a *WindowsAgent) RunAsService() {
 			LocalCert: a.DB.Cert,
 			Debug:     a.Debug,
 		}
-		a.Logger.Debugln(request2)
+		a.Logger.Debugln(r2)
 
-		r, err := MakeRequest(request2)
+		r, err := r2.MakeRequest()
 		if err != nil {
 			a.Logger.Debugln(err)
 		} else {
