@@ -599,7 +599,7 @@ func (a *WindowsAgent) RecoverMesh() {
 	}
 
 	url := fmt.Sprintf("%s/api/v1/%d/meshinfo/", a.Server, a.AgentPK)
-	r1 := &APIRequest{
+	req := &APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -608,7 +608,7 @@ func (a *WindowsAgent) RecoverMesh() {
 		Debug:     a.Debug,
 	}
 
-	resp, err := r1.MakeRequest()
+	resp, err := req.MakeRequest()
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -623,16 +623,11 @@ func (a *WindowsAgent) RecoverMesh() {
 			NodeIDHex string `json:"nodeidhex"`
 		}{NodeIDHex: StripAll(stdout)}
 
-		r2 := &APIRequest{
-			URL:       url,
-			Method:    "PATCH",
-			Headers:   a.Headers,
-			Payload:   payload,
-			Timeout:   15,
-			LocalCert: a.DB.Cert,
-			Debug:     a.Debug,
+		req.Method = "PATCH"
+		req.Payload = payload
+		if _, err := req.MakeRequest(); err != nil {
+			a.Logger.Debugln(err)
 		}
-		r2.MakeRequest()
 	}
 }
 

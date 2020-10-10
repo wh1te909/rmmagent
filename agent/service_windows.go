@@ -36,6 +36,14 @@ func (a *WindowsAgent) RunAsService() {
 	var sleep int
 
 	url := a.Server + "/api/v2/hello/"
+	req := &APIRequest{
+		URL:       url,
+		Headers:   a.Headers,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
+	}
+
 	plat, osinfo := OSInfo()
 
 	postPayload := HelloPost{
@@ -49,18 +57,11 @@ func (a *WindowsAgent) RunAsService() {
 		SaltVersion: a.GetProgramVersion("salt minion"),
 	}
 
-	r1 := &APIRequest{
-		URL:       url,
-		Method:    "POST",
-		Payload:   postPayload,
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
-	a.Logger.Debugln(r1)
+	req.Method = "POST"
+	req.Payload = postPayload
+	a.Logger.Debugln(req)
 
-	_, err := r1.MakeRequest()
+	_, err := req.MakeRequest()
 	if err != nil {
 		a.Logger.Debugln(err)
 	}
@@ -78,18 +79,11 @@ func (a *WindowsAgent) RunAsService() {
 			BootTime: BootTime(),
 		}
 
-		r2 := &APIRequest{
-			URL:       url,
-			Method:    "PATCH",
-			Payload:   patchPayload,
-			Headers:   a.Headers,
-			Timeout:   15,
-			LocalCert: a.DB.Cert,
-			Debug:     a.Debug,
-		}
-		a.Logger.Debugln(r2)
+		req.Method = "PATCH"
+		req.Payload = patchPayload
+		a.Logger.Debugln(req)
 
-		r, err := r2.MakeRequest()
+		r, err := req.MakeRequest()
 		if err != nil {
 			a.Logger.Debugln(err)
 		} else {
