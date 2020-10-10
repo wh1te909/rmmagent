@@ -26,6 +26,7 @@ type APIRequest struct {
 	Headers   map[string]string
 	Timeout   time.Duration
 	LocalCert string
+	Debug     bool
 }
 
 // MakeRequest creates an api request to the RMM
@@ -33,6 +34,7 @@ func MakeRequest(r *APIRequest) (*resty.Response, error) {
 	client.SetCloseConnection(true)
 	client.SetHeaders(r.Headers)
 	client.SetTimeout(r.Timeout * time.Second)
+	client.SetDebug(r.Debug)
 
 	if len(r.LocalCert) > 0 {
 		client.SetRootCertificate(r.LocalCert)

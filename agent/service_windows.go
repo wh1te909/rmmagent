@@ -50,11 +50,13 @@ func (a *WindowsAgent) RunAsService() {
 	}
 
 	request1 := &APIRequest{
-		URL:     url,
-		Method:  "POST",
-		Payload: postPayload,
-		Headers: a.Headers,
-		Timeout: 15,
+		URL:       url,
+		Method:    "POST",
+		Payload:   postPayload,
+		Headers:   a.Headers,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
 	}
 	a.Logger.Debugln(request1)
 
@@ -77,11 +79,13 @@ func (a *WindowsAgent) RunAsService() {
 		}
 
 		request2 := &APIRequest{
-			URL:     url,
-			Method:  "PATCH",
-			Payload: patchPayload,
-			Headers: a.Headers,
-			Timeout: 15,
+			URL:       url,
+			Method:    "PATCH",
+			Payload:   patchPayload,
+			Headers:   a.Headers,
+			Timeout:   15,
+			LocalCert: a.DB.Cert,
+			Debug:     a.Debug,
 		}
 		a.Logger.Debugln(request2)
 

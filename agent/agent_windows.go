@@ -25,7 +25,10 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-var wg sync.WaitGroup
+var (
+	wg           sync.WaitGroup
+	getDriveType = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetDriveTypeW")
+)
 
 // WindowsAgent struct
 type WindowsAgent struct {
@@ -41,6 +44,7 @@ type WindowsAgent struct {
 	Headers       map[string]string
 	Logger        *logrus.Logger
 	Version       string
+	Debug         bool
 }
 
 // New __init__
@@ -86,8 +90,8 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		Headers:       headers,
 		Logger:        logger,
 		Version:       version,
+		Debug:         logger.IsLevelEnabled(logrus.DebugLevel),
 	}
-
 }
 
 // LoadDB loads database info called during agent init
@@ -320,8 +324,6 @@ func (a *WindowsAgent) GetDisks() []Disk {
 		return ret
 	}
 
-	var getDriveType = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetDriveTypeW")
-
 	for _, p := range partitions {
 		typepath, _ := windows.UTF16PtrFromString(p.Device)
 		typeval, _, _ := getDriveType.Call(uintptr(unsafe.Pointer(typepath)))
@@ -349,57 +351,70 @@ func (a *WindowsAgent) GetDisks() []Disk {
 	return ret
 }
 
-// CMDShellNoOutput runs a command with shell=True, does not return output
-func CMDShellNoOutput(arg string, timeout int) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	defer cancel()
+// CMDShell mimics python's `subprocess.run(shell=True)`
+//
+// Context timeout won't work here since cmd.exe spawns a child process
+// and golang's defer will only kill the parent process which will already
+//
+// for example, passing `ping 8.8.8.8 -t` here will run forever even with a timeout set
+//
+// Passing `detached` will also ensure the function returns immediately and will never hang,
+// rather continue to run in the background
+func CMDShell(command string, detached bool) (output [2]string, e error) {
+	var outb, errb bytes.Buffer
 
-	cmd := exec.CommandContext(ctx, "cmd.exe", "/C", arg)
-	cmd.Run()
-
-	if ctx.Err() == context.DeadlineExceeded {
-		return
+	cmd := exec.Command("cmd.exe", "/C", command)
+	// https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
+	if detached {
+		cmd.SysProcAttr = &windows.SysProcAttr{
+			CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		}
 	}
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+	err := cmd.Run()
+
+	if err != nil {
+		return [2]string{"", ""}, fmt.Errorf("%s: %s", err, errb.String())
+	}
+
+	return [2]string{outb.String(), errb.String()}, nil
 }
 
-// CMDNoOutput runs a command with shell=False, does not return output
-func CMDNoOutput(exe string, args []string, timeout int) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, exe, args...)
-	cmd.Run()
-
-	if ctx.Err() == context.DeadlineExceeded {
-		return
-	}
-}
-
-// CMDWithOutput runs a command with shell=False and returns stdout and stderr
-func CMDWithOutput(exe string, args []string, timeout int) (stdout, stderr string, err error) {
+// CMD runs a command with shell=False
+func CMD(exe string, args []string, timeout int, detached bool) (output [2]string, e error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	var outb, errb bytes.Buffer
 	cmd := exec.CommandContext(ctx, exe, args...)
+	if detached {
+		cmd.SysProcAttr = &windows.SysProcAttr{
+			CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		}
+	}
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
-	cmd.Run()
+	err := cmd.Run()
 	if err != nil {
-		return "", "", err
+		return [2]string{"", ""}, fmt.Errorf("%s: %s", err, errb.String())
 	}
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return "", "", ctx.Err()
+		return [2]string{"", ""}, ctx.Err()
 	}
-	return outb.String(), errb.String(), nil
+
+	return [2]string{outb.String(), errb.String()}, nil
 }
 
 // EnablePing enables ping
 func EnablePing() {
 	fmt.Println("Enabling ping...")
 	cmd := `netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol=icmpv4:8,any dir=in action=allow`
-	CMDShellNoOutput(cmd, 5)
+	_, err := CMDShell(cmd, false)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 // EnableRDP enables Remote Desktop
@@ -417,7 +432,10 @@ func EnableRDP() {
 	}
 
 	cmd := `netsh advfirewall firewall set rule group="remote desktop" new enable=Yes`
-	CMDShellNoOutput(cmd, 5)
+	_, cerr := CMDShell(cmd, false)
+	if cerr != nil {
+		fmt.Println(cerr)
+	}
 }
 
 // DisableSleepHibernate disables sleep and hibernate
@@ -435,20 +453,19 @@ func DisableSleepHibernate() {
 	}
 
 	currents := []string{"ac", "dc"}
-	timeout := 5
 	for _, i := range currents {
 		wg.Add(1)
 		go func(c string) {
 			defer wg.Done()
-			CMDShellNoOutput(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), timeout)
-			CMDShellNoOutput(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), timeout)
-			CMDShellNoOutput(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), timeout)
-			CMDShellNoOutput(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), timeout)
-			CMDShellNoOutput(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), timeout)
+			CMDShell(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), false)
+			CMDShell(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), false)
+			CMDShell(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), false)
+			CMDShell(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), false)
+			CMDShell(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), false)
 		}(i)
 	}
 	wg.Wait()
-	CMDShellNoOutput("powercfg -S SCHEME_CURRENT", timeout)
+	CMDShell("powercfg -S SCHEME_CURRENT", false)
 }
 
 // LoggedOnUser returns active logged on console user
@@ -533,12 +550,12 @@ func (a *WindowsAgent) ForceKillMesh() {
 func (a *WindowsAgent) RecoverSalt() {
 	saltSVC := "salt-minion"
 	a.Logger.Debugln("Attempting salt recovery on", a.Hostname)
-	defer CMDNoOutput(a.Nssm, []string{"start", saltSVC}, 45)
+	defer CMD(a.Nssm, []string{"start", saltSVC}, 45, false)
 
-	CMDNoOutput(a.Nssm, []string{"stop", saltSVC}, 45)
+	CMD(a.Nssm, []string{"stop", saltSVC}, 45, false)
 	WaitForService(saltSVC, "stopped", 15)
 	a.ForceKillSalt()
-	CMDNoOutput("ipconfig", []string{"flushdns"}, 15)
+	CMD("ipconfig", []string{"flushdns"}, 15, false)
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
@@ -546,10 +563,10 @@ func (a *WindowsAgent) RecoverSalt() {
 func (a *WindowsAgent) RecoverMesh() {
 	meshSVC := "mesh agent"
 	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
-	defer CMDNoOutput("sc.exe", []string{"start", meshSVC}, 20)
+	defer CMD("sc.exe", []string{"start", meshSVC}, 20, false)
 
 	args := []string{"stop", meshSVC}
-	CMDNoOutput("sc.exe", args, 45)
+	CMD("sc.exe", args, 45, false)
 	WaitForService(meshSVC, "stopped", 5)
 	a.ForceKillMesh()
 
@@ -562,11 +579,14 @@ func (a *WindowsAgent) RecoverMesh() {
 		meshexe = mesh2
 	}
 
-	stdout, stderr, err := CMDWithOutput(meshexe, []string{"-nodeidhex"}, 10)
+	out, err := CMD(meshexe, []string{"-nodeidhex"}, 10, false)
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
 	}
+
+	stdout := out[0]
+	stderr := out[1]
 
 	if stderr != "" {
 		a.Logger.Debugln(stderr)
@@ -574,16 +594,18 @@ func (a *WindowsAgent) RecoverMesh() {
 	}
 
 	if stdout == "" || strings.Contains(strings.ToLower(StripAll(stdout)), "not defined") {
-		a.Logger.Debugln("Failed to get node id hex")
+		a.Logger.Debugln("Failed to get node id hex", stdout)
 		return
 	}
 
 	url := fmt.Sprintf("%s/api/v1/%d/meshinfo/", a.Server, a.AgentPK)
 	getreq := &APIRequest{
-		URL:     url,
-		Method:  "GET",
-		Headers: a.Headers,
-		Timeout: 15,
+		URL:       url,
+		Method:    "GET",
+		Headers:   a.Headers,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
 	}
 
 	resp, err := MakeRequest(getreq)
@@ -602,11 +624,13 @@ func (a *WindowsAgent) RecoverMesh() {
 		}{NodeIDHex: StripAll(stdout)}
 
 		patchreq := &APIRequest{
-			URL:     url,
-			Method:  "PATCH",
-			Headers: a.Headers,
-			Payload: payload,
-			Timeout: 15,
+			URL:       url,
+			Method:    "PATCH",
+			Headers:   a.Headers,
+			Payload:   payload,
+			Timeout:   15,
+			LocalCert: a.DB.Cert,
+			Debug:     a.Debug,
 		}
 		MakeRequest(patchreq)
 	}
