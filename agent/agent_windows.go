@@ -40,6 +40,7 @@ type WindowsAgent struct {
 	SaltMinion    string
 	SaltInstaller string
 	MeshInstaller string
+	PyBin         string
 	Headers       map[string]string
 	Logger        *logrus.Logger
 	Version       string
@@ -53,6 +54,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	pd := filepath.Join(os.Getenv("ProgramFiles"), "TacticalAgent")
 	dbFile := filepath.Join(pd, "agentdb.db")
 	sd := os.Getenv("SystemDrive")
+	pybin := filepath.Join(sd, "\\salt", "bin", "python.exe")
 	sc := filepath.Join(sd, "\\salt\\salt-call.bat")
 	nssm, mesh, saltexe, saltinstaller := ArchInfo(pd)
 	db := LoadDB(dbFile, logger)
@@ -86,6 +88,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		SaltMinion:    saltexe,
 		SaltInstaller: saltinstaller,
 		MeshInstaller: mesh,
+		PyBin:         pybin,
 		Headers:       headers,
 		Logger:        logger,
 		Version:       version,
