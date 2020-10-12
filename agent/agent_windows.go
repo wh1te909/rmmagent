@@ -685,3 +685,30 @@ func ShowStatus() {
 		fmt.Println("Mesh Agent:", statusMap["mesh agent"])
 	}
 }
+
+func (a *WindowsAgent) installerMsg(msg, alert string) {
+	window := w32.GetForegroundWindow()
+	if window != 0 {
+		var (
+			handle w32.HWND
+			flags  uint
+		)
+
+		switch alert {
+		case "info":
+			flags = w32.MB_OK | w32.MB_ICONINFORMATION
+		case "error":
+			flags = w32.MB_OK | w32.MB_ICONERROR
+		default:
+			flags = w32.MB_OK | w32.MB_ICONINFORMATION
+		}
+
+		w32.MessageBox(handle, msg, "Tactical RMM", flags)
+	} else {
+		fmt.Println(msg)
+	}
+
+	if alert == "error" {
+		a.Logger.Fatalln(msg)
+	}
+}
