@@ -64,7 +64,16 @@ type AllChecks struct {
 	Checks []Check
 }
 
-func (a *WindowsAgent) RunChecks() {
+func (a *WindowsAgent) CheckRunner() {
+	a.Logger.Infoln("Checkrunner service started.")
+	for {
+		interval, _ := a.RunChecks()
+		a.Logger.Debugln("Sleeping for", interval)
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+}
+
+func (a *WindowsAgent) RunChecks() (int, error) {
 	data := AllChecks{}
 	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.Server, a.AgentID)
 	req := &APIRequest{
@@ -79,12 +88,12 @@ func (a *WindowsAgent) RunChecks() {
 	r, err := req.MakeRequest()
 	if err != nil {
 		a.Logger.Debugln(err)
-		return
+		return 120, err
 	}
 
 	if err := json.Unmarshal(r.Body(), &data); err != nil {
 		a.Logger.Debugln(err)
-		return
+		return 120, err
 	}
 
 	var wg sync.WaitGroup
@@ -137,6 +146,7 @@ func (a *WindowsAgent) RunChecks() {
 		}
 	}
 	wg.Wait()
+	return data.CheckInfo.Interval, nil
 }
 
 // ScriptCheck runs either bat, powershell or python script
@@ -209,6 +219,7 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(data.Timeout)*time.Second)
 	defer cancel()
 
+	var timedOut bool = false
 	cmd := exec.Command(exe, cmdArgs...)
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
@@ -228,11 +239,14 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 		<-ctx.Done()
 
 		_ = KillProc(p)
+		timedOut = true
 	}(pid)
 
-	if cmdErr := cmd.Wait(); cmdErr != nil {
+	cmdErr := cmd.Wait()
+
+	if timedOut {
 		stdoutStr = outb.String()
-		stderrStr = fmt.Sprintf("Script check timed out after %d seconds", data.Timeout)
+		stderrStr = fmt.Sprintf("%s\nScript check timed out after %d seconds", errb.String(), data.Timeout)
 		exitCode = 98
 		a.Logger.Debugln("Script check timeout:", ctx.Err())
 	} else {
