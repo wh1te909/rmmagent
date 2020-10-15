@@ -1,0 +1,9 @@
+master_tries: -1
+keysize: 2048
+multiprocessing: True
+output: json
+grains_cache: True
+grains_refresh_every: 180
+grains_cache_expiration: 86400
+enable_fqdn_grains: False
+log_level: error

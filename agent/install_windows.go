@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/gonutz/w32"
 )
 
 type Installer struct {
@@ -32,6 +33,8 @@ type Installer struct {
 }
 
 func (a *WindowsAgent) Install(i *Installer) {
+	a.checkExistingAndRemove()
+
 	i.Headers = map[string]string{
 		"content-type":  "application/json",
 		"Authorization": fmt.Sprintf("Token %s", i.Token),
@@ -45,14 +48,14 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	if u.Scheme != "https" && u.Scheme != "http" {
-		a.installerMsg("Invalid URL (must contain https or http)\nInstallation Failed", "error")
+		a.installerMsg("Invalid URL (must contain https or http)", "error")
 	}
 
 	i.SaltMaster = u.Host
 	a.Logger.Debugln("Salt Master:", i.SaltMaster)
 
 	baseURL := u.Scheme + "://" + u.Host
-	a.Logger.Debugln(baseURL)
+	a.Logger.Debugln("Base URL:", baseURL)
 
 	minion := filepath.Join(a.ProgramDir, a.SaltInstaller)
 	a.Logger.Debugln("Salt Minion:", minion)
@@ -60,7 +63,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	rClient := resty.New()
 	rClient.SetCloseConnection(true)
 	rClient.SetTimeout(i.Timeout * time.Second)
-	rClient.SetDebug(a.Debug)
+	//rClient.SetDebug(a.Debug)
 
 	// download or copy the salt-minion-setup.exe
 	saltMin := filepath.Join(a.ProgramDir, a.SaltInstaller)
@@ -135,33 +138,41 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	agentToken := r.Result().(*TokenResp).Token
 
-	// install mesh agent
-	out, err := CMD(mesh, []string{"-fullinstall"}, int(60), false)
-	if err != nil {
-		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", err.Error()), "error")
+	a.Logger.Infoln("Installing mesh agent...")
+	a.Logger.Debugln("Mesh agent:", mesh)
+	meshOut, meshErr := CMD(mesh, []string{"-fullinstall"}, int(60), false)
+	if meshErr != nil {
+		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", meshErr.Error()), "error")
 	}
-	if out[1] != "" {
-		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", out[1]), "error")
+	if meshOut[1] != "" {
+		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", meshOut[1]), "error")
 	}
 
-	WaitForService("mesh agent", "running", 10)
+	fmt.Println(meshOut)
+
+	a.Logger.Debugln("Waiting for mesh service to be running")
+	WaitForService(a.MeshSVC, "running", 15)
+	a.Logger.Debugln("Mesh service is running")
+	a.Logger.Debugln("Sleeping for 10")
 	time.Sleep(10 * time.Second)
 
 	meshSuccess := false
 	var meshNodeID string
 	for !meshSuccess {
-		pMesh, err := CMD(mesh, []string{"-nodeidhex"}, int(30), false)
-		if err != nil {
-			a.Logger.Errorln(err)
+		a.Logger.Debugln("Getting mesh node id hex")
+		pMesh, pErr := CMD(mesh, []string{"-nodeidhex"}, int(30), false)
+		if pErr != nil {
+			a.Logger.Errorln(pErr)
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		if out[1] != "" {
-			a.Logger.Errorln(out[1])
+		if pMesh[1] != "" {
+			a.Logger.Errorln(pMesh[1])
 			time.Sleep(5 * time.Second)
 			continue
 		}
 		meshNodeID = StripAll(pMesh[0])
+		a.Logger.Debugln("Node id hex:", meshNodeID)
 		if strings.Contains(strings.ToLower(meshNodeID), "not defined") {
 			a.Logger.Errorln(meshNodeID)
 			time.Sleep(5 * time.Second)
@@ -197,7 +208,9 @@ func (a *WindowsAgent) Install(i *Installer) {
 	agentPK := r.Result().(*NewAgentResp).AgentPK
 	saltID := r.Result().(*NewAgentResp).SaltID
 
-	fmt.Println(agentToken, agentPK, saltID)
+	a.Logger.Debugln("Agent token:", agentToken)
+	a.Logger.Debugln("Agent PK:", agentPK)
+	a.Logger.Debugln("Salt ID:", saltID)
 
 	// create the database
 	db, err := sql.Open("sqlite3", filepath.Join(a.ProgramDir, "agentdb.db"))
@@ -240,6 +253,156 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	// refresh our agent with new values
 	a = New(a.Logger, a.Version)
+
+	// install salt
+	a.Logger.Debugln("changing dir to", a.ProgramDir)
+	cdErr := os.Chdir(a.ProgramDir)
+	if cdErr != nil {
+		a.installerMsg(cdErr.Error(), "error")
+	}
+
+	a.Logger.Infoln("Installing the salt-minion, this might take a while...")
+	saltInstallArgs := []string{
+		a.SaltInstaller,
+		"/S",
+		"/custom-config=saltcustom",
+		fmt.Sprintf("/master=%s", i.SaltMaster),
+		fmt.Sprintf("/minion-name=%s", saltID),
+		"/start-minion=1",
+	}
+
+	a.Logger.Debugln("Installing salt with:", saltInstallArgs)
+	_, saltErr := CMDShell(saltInstallArgs, "", int(i.Timeout), false)
+	if saltErr != nil {
+		a.installerMsg(fmt.Sprintf("Unable to install salt: %s", saltErr.Error()), "error")
+	}
+
+	a.Logger.Debugln("Waiting for salt-minion service enter the running state")
+	WaitForService("salt-minion", "running", 30)
+	a.Logger.Debugln("Salt-minion is running")
+	_, serr := WinServiceGet("salt-minion")
+	if serr != nil {
+		a.installerMsg("Salt installation failed\nCheck the log file in c:\\salt\\var\\log\\salt\\minion", "error")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	// set new headers, no longer knox auth...use agent auth
+	rClient.SetHeaders(a.Headers)
+
+	// accept the salt key on the rmm
+	a.Logger.Debugln("Registering salt with the RMM")
+	acceptPayload := map[string]string{"saltid": saltID, "agent_id": a.AgentID}
+	acceptAttempts := 0
+	acceptRetries := 20
+	for {
+		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v2/saltminion/", baseURL))
+		if err != nil {
+			a.Logger.Debugln(err)
+			acceptAttempts++
+			time.Sleep(5 * time.Second)
+		}
+
+		if r.StatusCode() != 200 {
+			a.Logger.Debugln(r.String())
+			acceptAttempts++
+			time.Sleep(5 * time.Second)
+		} else {
+			acceptAttempts = 0
+		}
+
+		if acceptAttempts == 0 {
+			a.Logger.Debugln(r.String())
+			break
+		} else if acceptAttempts >= acceptRetries {
+			a.installerMsg("Unable to register salt with the RMM\nInstallation failed.", "error")
+		}
+	}
+
+	time.Sleep(10 * time.Second)
+
+	// sync salt modules
+	a.Logger.Debugln("Syncing salt modules")
+	syncPayload := map[string]string{"agent_id": a.AgentID}
+	syncAttempts := 0
+	syncRetries := 20
+	for {
+		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v2/saltminion/", baseURL))
+		if err != nil {
+			a.Logger.Debugln(err)
+			syncAttempts++
+			time.Sleep(5 * time.Second)
+		}
+
+		if r.StatusCode() != 200 {
+			a.Logger.Debugln(r.String())
+			syncAttempts++
+			time.Sleep(5 * time.Second)
+		} else {
+			syncAttempts = 0
+		}
+
+		if syncAttempts == 0 {
+			a.Logger.Debugln(r.String())
+			break
+		} else if syncAttempts >= syncRetries {
+			a.installerMsg("Unable to sync salt modules\nInstallation failed.", "error")
+		}
+	}
+
+	// send wmi sysinfo
+	a.Logger.Debugln("Getting sysinfo with WMI")
+	a.GetWMI()
+
+	// remove existing services if exist
+	services := []string{"tacticalagent", "checkrunner"}
+	for _, svc := range services {
+		_, err := WinServiceGet(svc)
+		if err == nil {
+			a.Logger.Debugln(fmt.Sprintf("Found existing %s service. Removing", svc))
+			_, _ = CMD(a.Nssm, []string{"stop", svc}, 30, false)
+			_, _ = CMD(a.Nssm, []string{"remove", svc, "confirm"}, 30, false)
+		}
+	}
+
+	a.Logger.Infoln("Installing services...")
+	svcCommands := [8][]string{
+		// winagentsvc
+		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
+		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
+		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
+		{"start", "tacticalagent"},
+		//checkrunner
+		{"install", "checkrunner", a.EXE, "-m", "checkrunner"},
+		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
+		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
+		{"start", "checkrunner"},
+	}
+
+	for _, s := range svcCommands {
+		a.Logger.Debugln(s)
+		_, nssmErr := CMD(a.Nssm, s, 15, false)
+		if nssmErr != nil {
+			a.installerMsg(nssmErr.Error(), "error")
+		}
+	}
+
+	if i.Power {
+		a.Logger.Infoln("Disabling sleep/hibernate...")
+		DisableSleepHibernate()
+	}
+
+	if i.Ping {
+		a.Logger.Infoln("Enabling ping...")
+		EnablePing()
+	}
+
+	if i.RDP {
+		a.Logger.Infoln("Enabling RDP...")
+		EnableRDP()
+	}
+
+	a.installerMsg("Installation was successfull!\nAllow a few minutes for the agent to properly display in the RMM", "info")
 }
 
 func copyFile(src, dst string) error {
@@ -260,4 +423,30 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func (a *WindowsAgent) checkExistingAndRemove() {
+	installedMesh := filepath.Join(a.ProgramDir, "Mesh Agent", "MeshAgent.exe")
+	installedSalt := filepath.Join(a.SystemDrive, "\\salt", "uninst.exe")
+	agentDB := filepath.Join(a.ProgramDir, "agentdb.db")
+	if FileExists(installedMesh) || FileExists(installedSalt) || FileExists(agentDB) {
+		tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
+		tacUninstArgs := []string{tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES"}
+
+		window := w32.GetForegroundWindow()
+		if window != 0 {
+			var handle w32.HWND
+			msg := "Existing installation found\nClick OK to remove, then re-run the installer.\nClick Cancel to abort."
+			action := w32.MessageBox(handle, msg, "Tactical RMM", w32.MB_OKCANCEL|w32.MB_ICONWARNING)
+			if action == w32.IDOK {
+				_, _ = CMDShell(tacUninstArgs, "", 60, true)
+				w32.MessageBox(handle, "Uninstall finished", "Tactical RMM", w32.MB_OK|w32.MB_ICONINFORMATION)
+			}
+		} else {
+			fmt.Println("Existing installation found and must be removed before attempting to reinstall.")
+			fmt.Println("Run the following command to uninstall, and then re-run this installer.")
+			fmt.Printf("\"%s\" %s %s", tacUninstArgs[0], tacUninstArgs[1], tacUninstArgs[2])
+		}
+		os.Exit(0)
+	}
 }

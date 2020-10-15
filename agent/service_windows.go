@@ -29,8 +29,8 @@ type HelloPatch struct {
 	BootTime int64            `json:"boot_time"`
 }
 
-// RunAsService tacticalagent windows nssm service
-func (a *WindowsAgent) RunAsService() {
+// WinAgentSvc tacticalagent windows nssm service
+func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
 	var data map[string]interface{}
 	var sleep int

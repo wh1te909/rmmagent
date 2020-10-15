@@ -34,12 +34,14 @@ type WindowsAgent struct {
 	DB
 	Host
 	ProgramDir    string
+	EXE           string
 	SystemDrive   string
 	SaltCall      string
 	Nssm          string
 	SaltMinion    string
 	SaltInstaller string
 	MeshInstaller string
+	MeshSVC       string
 	PyBin         string
 	Headers       map[string]string
 	Logger        *logrus.Logger
@@ -52,6 +54,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	host, _ := ps.Host()
 	info := host.Info()
 	pd := filepath.Join(os.Getenv("ProgramFiles"), "TacticalAgent")
+	exe := filepath.Join(pd, "tacticalrmm.exe")
 	dbFile := filepath.Join(pd, "agentdb.db")
 	sd := os.Getenv("SystemDrive")
 	pybin := filepath.Join(sd, "\\salt", "bin", "python.exe")
@@ -82,12 +85,14 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 			Timezone: info.Timezone,
 		},
 		ProgramDir:    pd,
+		EXE:           exe,
 		SystemDrive:   sd,
 		SaltCall:      sc,
 		Nssm:          nssm,
 		SaltMinion:    saltexe,
 		SaltInstaller: saltinstaller,
 		MeshInstaller: mesh,
+		MeshSVC:       "mesh agent",
 		PyBin:         pybin,
 		Headers:       headers,
 		Logger:        logger,
@@ -356,18 +361,24 @@ func (a *WindowsAgent) GetDisks() []Disk {
 }
 
 // CMDShell mimics python's `subprocess.run(shell=True)`
-//
-// Context timeout won't work here since cmd.exe spawns a child process
-// and golang's defer will only kill the parent process which will already
-//
-// for example, passing `ping 8.8.8.8 -t` here will run forever even with a timeout set
-//
-// Passing `detached` will also ensure the function returns immediately and will never hang,
-// rather continue to run in the background
-func CMDShell(command string, detached bool) (output [2]string, e error) {
-	var outb, errb bytes.Buffer
+func CMDShell(cmdArgs []string, command string, timeout int, detached bool) (output [2]string, e error) {
+	var (
+		outb     bytes.Buffer
+		errb     bytes.Buffer
+		cmd      *exec.Cmd
+		timedOut bool = false
+	)
 
-	cmd := exec.Command("cmd.exe", "/C", command)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	if len(cmdArgs) > 0 && command == "" {
+		cmdArgs = append([]string{"/C"}, cmdArgs...)
+		cmd = exec.Command("cmd.exe", cmdArgs...)
+	} else {
+		cmd = exec.Command("cmd.exe", "/C", command)
+	}
+
 	// https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
 	if detached {
 		cmd.SysProcAttr = &windows.SysProcAttr{
@@ -376,10 +387,26 @@ func CMDShell(command string, detached bool) (output [2]string, e error) {
 	}
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
-	err := cmd.Run()
+	err := cmd.Start()
+
+	pid := int32(cmd.Process.Pid)
+
+	go func(p int32) {
+
+		<-ctx.Done()
+
+		_ = KillProc(p)
+		timedOut = true
+	}(pid)
+
+	err = cmd.Wait()
+
+	if timedOut {
+		return [2]string{outb.String(), errb.String()}, ctx.Err()
+	}
 
 	if err != nil {
-		return [2]string{"", ""}, fmt.Errorf("%s: %s", err, errb.String())
+		return [2]string{outb.String(), errb.String()}, err
 	}
 
 	return [2]string{outb.String(), errb.String()}, nil
@@ -413,9 +440,9 @@ func CMD(exe string, args []string, timeout int, detached bool) (output [2]strin
 
 // EnablePing enables ping
 func EnablePing() {
-	fmt.Println("Enabling ping...")
+	args := make([]string, 0)
 	cmd := `netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol=icmpv4:8,any dir=in action=allow`
-	_, err := CMDShell(cmd, false)
+	_, err := CMDShell(args, cmd, 10, false)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -423,7 +450,6 @@ func EnablePing() {
 
 // EnableRDP enables Remote Desktop
 func EnableRDP() {
-	fmt.Println("Enabling RDP...")
 	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Terminal Server`, registry.ALL_ACCESS)
 	if err != nil {
 		fmt.Println(err)
@@ -435,8 +461,9 @@ func EnableRDP() {
 		fmt.Println(err)
 	}
 
+	args := make([]string, 0)
 	cmd := `netsh advfirewall firewall set rule group="remote desktop" new enable=Yes`
-	_, cerr := CMDShell(cmd, false)
+	_, cerr := CMDShell(args, cmd, 10, false)
 	if cerr != nil {
 		fmt.Println(cerr)
 	}
@@ -444,7 +471,6 @@ func EnableRDP() {
 
 // DisableSleepHibernate disables sleep and hibernate
 func DisableSleepHibernate() {
-	fmt.Println("Disabling sleep/hibernate...")
 	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager\Power`, registry.ALL_ACCESS)
 	if err != nil {
 		fmt.Println(err)
@@ -456,21 +482,23 @@ func DisableSleepHibernate() {
 		fmt.Println(err)
 	}
 
+	args := make([]string, 0)
+
 	var wg sync.WaitGroup
 	currents := []string{"ac", "dc"}
 	for _, i := range currents {
 		wg.Add(1)
 		go func(c string) {
 			defer wg.Done()
-			CMDShell(fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), false)
-			CMDShell(fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), false)
-			CMDShell(fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), false)
-			CMDShell(fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), false)
-			CMDShell(fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), false)
+			_, _ = CMDShell(args, fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), 5, false)
+			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), 5, false)
 		}(i)
 	}
 	wg.Wait()
-	CMDShell("powercfg -S SCHEME_CURRENT", false)
+	_, _ = CMDShell(args, "powercfg -S SCHEME_CURRENT", 5, false)
 }
 
 // LoggedOnUser returns active logged on console user
@@ -564,18 +592,7 @@ func (a *WindowsAgent) RecoverSalt() {
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
-//RecoverMesh recovers mesh agent
-func (a *WindowsAgent) RecoverMesh() {
-	meshSVC := "mesh agent"
-	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
-	defer CMD("sc.exe", []string{"start", meshSVC}, 20, false)
-
-	args := []string{"stop", meshSVC}
-	CMD("sc.exe", args, 45, false)
-	WaitForService(meshSVC, "stopped", 5)
-	a.ForceKillMesh()
-
-	var meshexe string
+func (a *WindowsAgent) getMeshEXE() (meshexe string) {
 	mesh1 := filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe")
 	mesh2 := filepath.Join(a.ProgramDir, a.MeshInstaller)
 	if FileExists(mesh1) {
@@ -583,6 +600,20 @@ func (a *WindowsAgent) RecoverMesh() {
 	} else {
 		meshexe = mesh2
 	}
+	return meshexe
+}
+
+//RecoverMesh recovers mesh agent
+func (a *WindowsAgent) RecoverMesh() {
+	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
+	defer CMD("sc.exe", []string{"start", a.MeshSVC}, 20, false)
+
+	args := []string{"stop", a.MeshSVC}
+	CMD("sc.exe", args, 45, false)
+	WaitForService(a.MeshSVC, "stopped", 5)
+	a.ForceKillMesh()
+
+	meshexe := a.getMeshEXE()
 
 	out, err := CMD(meshexe, []string{"-nodeidhex"}, 10, false)
 	if err != nil {
@@ -640,10 +671,7 @@ func (a *WindowsAgent) RecoverMesh() {
 func (a *WindowsAgent) RecoverCMD(command string) {
 	a.Logger.Debugln("Attempting shell recovery on", a.Hostname)
 	a.Logger.Debugln(command)
-	cmd := exec.Command("cmd.exe", "/C", command)
-	if err := cmd.Run(); err != nil {
-		a.Logger.Debugln(err)
-	}
+	_, _ = CMDShell([]string{}, command, 18000, true)
 }
 
 // ShowStatus prints windows service status

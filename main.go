@@ -1,18 +1,11 @@
 //go:generate goversioninfo -64
 package main
 
-// cross compile from linux for windows
-// apt install build-essential gcc-multilib gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
-// 64 bit: CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64 go build -o tacticalrmm.exe
-// 32 bit: CGO_ENABLED=1 CC=i686-w64-mingw32-gcc CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386 go build -o tacticalrmm-x86.exe
-
-// building 32 bit from windows from git bash
-// env CGO_ENABLED=1 CC=i686-w64-mingw32-gcc CXX=i686-w64-mingw32-g++ GOARCH=386 go build -o tacticalrmm-x86.exe
-
 import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/sirupsen/logrus"
 	"github.com/wh1te909/rmmagent/agent"
@@ -35,7 +28,7 @@ func main() {
 	siteID := flag.Int("site-id", 0, "Site ID")
 	timeout := flag.Duration("timeout", 900, "Installer timeout (seconds)")
 	desc := flag.String("desc", hostname, "Agent's Description")
-	atype := flag.String("agent-type", "server", "Server or Workstation")
+	atype := flag.String("agent-type", "server", "server or workstation")
 	token := flag.String("auth", "", "Token")
 	power := flag.Bool("power", false, "Disable sleep/hibernate")
 	rdp := flag.Bool("rdp", false, "Enable RDP")
@@ -64,7 +57,15 @@ func main() {
 	case "checkrunner":
 		a.CheckRunner()
 	case "winagentsvc":
-		a.RunAsService()
+		a.WinAgentSvc()
+	case "runchecks":
+		a.RunChecks()
+	case "sysinfo":
+		a.GetWMI()
+	case "recoversalt":
+		a.RecoverSalt()
+	case "recovermesh":
+		a.RecoverMesh()
 	case "install":
 		log.SetOutput(os.Stdout)
 		if *api == "" || *clientID == 0 || *siteID == 0 || *token == "" {
@@ -108,6 +109,11 @@ func setupLogging(level *string, to *string) {
 }
 
 func installUsage() {
-	u := `Usage: tacticalrmm.exe -m install -api <https://api.example.com> -client-id X -site-id X -auth <TOKEN>`
-	fmt.Println(u)
+	switch runtime.GOOS {
+	case "windows":
+		u := `Usage: tacticalrmm.exe -m install -api <https://api.example.com> -client-id X -site-id X -auth <TOKEN>`
+		fmt.Println(u)
+	case "linux":
+		// todo
+	}
 }
