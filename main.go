@@ -69,6 +69,10 @@ func main() {
 		a.RecoverMesh()
 	case "winupdater":
 		a.InstallPatches()
+	case "fixmesh":
+		a.SyncMeshNodeID()
+	case "cleanup":
+		a.UninstallCleanup()
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return

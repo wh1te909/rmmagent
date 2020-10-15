@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -603,16 +604,7 @@ func (a *WindowsAgent) getMeshEXE() (meshexe string) {
 	return meshexe
 }
 
-//RecoverMesh recovers mesh agent
-func (a *WindowsAgent) RecoverMesh() {
-	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
-	defer CMD("sc.exe", []string{"start", a.MeshSVC}, 20, false)
-
-	args := []string{"stop", a.MeshSVC}
-	CMD("sc.exe", args, 45, false)
-	WaitForService(a.MeshSVC, "stopped", 5)
-	a.ForceKillMesh()
-
+func (a *WindowsAgent) SyncMeshNodeID() {
 	meshexe := a.getMeshEXE()
 
 	out, err := CMD(meshexe, []string{"-nodeidhex"}, 10, false)
@@ -667,6 +659,18 @@ func (a *WindowsAgent) RecoverMesh() {
 	}
 }
 
+//RecoverMesh recovers mesh agent
+func (a *WindowsAgent) RecoverMesh() {
+	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
+	defer CMD("sc.exe", []string{"start", a.MeshSVC}, 20, false)
+
+	args := []string{"stop", a.MeshSVC}
+	CMD("sc.exe", args, 45, false)
+	WaitForService(a.MeshSVC, "stopped", 5)
+	a.ForceKillMesh()
+	a.SyncMeshNodeID()
+}
+
 //RecoverCMD runs a shell recovery command
 func (a *WindowsAgent) RecoverCMD(command string) {
 	a.Logger.Debugln("Attempting shell recovery on", a.Hostname)
@@ -698,6 +702,54 @@ func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int
 		return bytesErr, err
 	}
 	return outb.Bytes(), nil
+}
+
+func (a *WindowsAgent) CreateMeshWatchDogTask() {
+	t := time.Now().Local().Add(5 * time.Minute)
+	f := fmt.Sprintf("%02d:%02d", t.Hour(), t.Minute())
+
+	args := []string{
+		"name=TacticalRMM_fixmesh",
+		"force=True",
+		"action_type=Execute",
+		fmt.Sprintf(`cmd="%s"`, a.EXE),
+		`arguments='-m fixmesh'`,
+		"trigger_type=Daily",
+		fmt.Sprintf(`start_time='%s'`, f),
+		`repeat_interval='1 hour'`,
+		"ac_only=False",
+		"stop_if_on_batteries=False",
+	}
+
+	_, err := a.LocalSaltCall("task.create_task", args, 60)
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
+}
+
+func (a *WindowsAgent) UninstallCleanup() {
+	out, err := a.LocalSaltCall("task.list_tasks", []string{}, 45)
+	if err != nil {
+		return
+	}
+
+	type LocalSaltTasks struct {
+		Local []string `json:"local"`
+	}
+
+	data := LocalSaltTasks{}
+	if err := json.Unmarshal(out, &data); err != nil {
+		return
+	}
+
+	for _, task := range data.Local {
+		if strings.HasPrefix(task, "TacticalRMM_") {
+			_, err := a.LocalSaltCall("task.delete_task", []string{task}, 45)
+			if err != nil {
+				continue
+			}
+		}
+	}
 }
 
 // ShowStatus prints windows service status

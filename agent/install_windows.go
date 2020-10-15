@@ -365,6 +365,10 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Getting sysinfo with WMI")
 	a.GetWMI()
 
+	// create mesh watchdog
+	a.Logger.Debugln("Creating mesh watchdog scheduled task")
+	a.CreateMeshWatchDogTask()
+
 	// remove existing services if exist
 	services := []string{"tacticalagent", "checkrunner"}
 	for _, svc := range services {
