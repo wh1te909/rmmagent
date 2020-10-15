@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -49,6 +50,16 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	if u.Scheme != "https" && u.Scheme != "http" {
 		a.installerMsg("Invalid URL (must contain https or http)", "error")
+	}
+
+	// will match either ipv4 , or ipv4:port
+	var ipPort = regexp.MustCompile(`[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?`)
+
+	// if ipv4:port, strip the port to get ip for salt master
+	if ipPort.MatchString(u.Host) && strings.Contains(u.Host, ":") {
+		i.SaltMaster = strings.Split(u.Host, ":")[0]
+	} else {
+		i.SaltMaster = u.Host
 	}
 
 	i.SaltMaster = u.Host
