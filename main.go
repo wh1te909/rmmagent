@@ -21,6 +21,7 @@ func main() {
 	hostname, _ := os.Hostname()
 	ver := flag.Bool("version", false, "Prints version")
 	mode := flag.String("m", "", "The mode to run")
+	taskPK := flag.Int("p", 0, "Task PK")
 	logLevel := flag.String("log", "INFO", "The log level")
 	logTo := flag.String("logto", "file", "Where to log to")
 	api := flag.String("api", "", "API URL")
@@ -66,6 +67,11 @@ func main() {
 		a.RecoverSalt()
 	case "recovermesh":
 		a.RecoverMesh()
+	case "taskrunner":
+		if len(os.Args) < 5 || *taskPK == 0 {
+			return
+		}
+		a.RunTask(*taskPK)
 	case "install":
 		log.SetOutput(os.Stdout)
 		if *api == "" || *clientID == 0 || *siteID == 0 || *token == "" {

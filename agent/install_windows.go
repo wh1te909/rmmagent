@@ -440,7 +440,6 @@ func (a *WindowsAgent) checkExistingAndRemove() {
 			action := w32.MessageBox(handle, msg, "Tactical RMM", w32.MB_OKCANCEL|w32.MB_ICONWARNING)
 			if action == w32.IDOK {
 				_, _ = CMDShell(tacUninstArgs, "", 60, true)
-				w32.MessageBox(handle, "Uninstall finished", "Tactical RMM", w32.MB_OK|w32.MB_ICONINFORMATION)
 			}
 		} else {
 			fmt.Println("Existing installation found and must be removed before attempting to reinstall.")

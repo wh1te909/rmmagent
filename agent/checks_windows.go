@@ -149,19 +149,9 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 	return data.CheckInfo.Interval, nil
 }
 
-// ScriptCheck runs either bat, powershell or python script
-func (a *WindowsAgent) ScriptCheck(data Check) {
-	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   30,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
+func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeout int) (stdout, stderr string, exitcode int, e error) {
 
-	content := []byte(data.Script.Code)
+	content := []byte(code)
 
 	dir, err := ioutil.TempDir("", "trmm")
 	if err != nil {
@@ -171,18 +161,16 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 	defer os.RemoveAll(dir)
 
 	const defaultExitCode = 1
+
 	var (
-		outb      bytes.Buffer
-		errb      bytes.Buffer
-		exe       string
-		ext       string
-		stdoutStr string
-		stderrStr string
-		cmdArgs   []string
-		exitCode  int
+		outb    bytes.Buffer
+		errb    bytes.Buffer
+		exe     string
+		ext     string
+		cmdArgs []string
 	)
 
-	switch data.Script.Shell {
+	switch shell {
 	case "powershell":
 		ext = "*.ps1"
 	case "python":
@@ -194,14 +182,14 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 	tmpfn, _ := ioutil.TempFile(dir, ext)
 	if _, err := tmpfn.Write(content); err != nil {
 		a.Logger.Debugln(err)
-		return
+		return "", err.Error(), 85, err
 	}
 	if err := tmpfn.Close(); err != nil {
 		a.Logger.Debugln(err)
-		return
+		return "", err.Error(), 85, err
 	}
 
-	switch data.Script.Shell {
+	switch shell {
 	case "powershell":
 		exe = "Powershell"
 		cmdArgs = []string{"-NonInteractive", "-NoProfile", "-ExecutionPolicy", "Bypass", tmpfn.Name()}
@@ -212,22 +200,21 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 		exe = tmpfn.Name()
 	}
 
-	if len(data.ScriptArgs) > 0 {
-		cmdArgs = append(cmdArgs, data.ScriptArgs...)
+	if len(args) > 0 {
+		cmdArgs = append(cmdArgs, args...)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(data.Timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	var timedOut bool = false
 	cmd := exec.Command(exe, cmdArgs...)
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
-	start := time.Now()
 
 	if cmdErr := cmd.Start(); cmdErr != nil {
 		a.Logger.Debugln(cmdErr)
-		return
+		return "", cmdErr.Error(), 65, cmdErr
 	}
 	pid := int32(cmd.Process.Pid)
 
@@ -245,40 +232,57 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 	cmdErr := cmd.Wait()
 
 	if timedOut {
-		stdoutStr = outb.String()
-		stderrStr = fmt.Sprintf("%s\nScript check timed out after %d seconds", errb.String(), data.Timeout)
-		exitCode = 98
+		stdout = outb.String()
+		stderr = fmt.Sprintf("%s\nScript check timed out after %d seconds", errb.String(), timeout)
+		exitcode = 98
 		a.Logger.Debugln("Script check timeout:", ctx.Err())
 	} else {
-		stdoutStr = outb.String()
-		stderrStr = errb.String()
+		stdout = outb.String()
+		stderr = errb.String()
 
 		// get the exit code
 		if cmdErr != nil {
 			if exitError, ok := cmdErr.(*exec.ExitError); ok {
 				if ws, ok := exitError.Sys().(syscall.WaitStatus); ok {
-					exitCode = ws.ExitStatus()
+					exitcode = ws.ExitStatus()
 				} else {
-					exitCode = defaultExitCode
+					exitcode = defaultExitCode
 				}
 			} else {
-				exitCode = defaultExitCode
+				exitcode = defaultExitCode
 			}
 
 		} else {
 			if ws, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
-				exitCode = ws.ExitStatus()
+				exitcode = ws.ExitStatus()
 			} else {
-				exitCode = 0
+				exitcode = 0
 			}
 		}
 	}
+	return stdout, stderr, exitcode, nil
+}
+
+// ScriptCheck runs either bat, powershell or python script
+func (a *WindowsAgent) ScriptCheck(data Check) {
+	url := a.Server + "/api/v3/checkrunner/"
+	r := &APIRequest{
+		URL:       url,
+		Method:    "PATCH",
+		Headers:   a.Headers,
+		Timeout:   30,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
+	}
+
+	start := time.Now()
+	stdout, stderr, retcode, _ := a.RunScript(data.Script.Code, data.Script.Shell, data.ScriptArgs, data.Timeout)
 
 	r.Payload = map[string]interface{}{
 		"id":      data.CheckPK,
-		"stdout":  stdoutStr,
-		"stderr":  stderrStr,
-		"retcode": exitCode,
+		"stdout":  stdout,
+		"stderr":  stderr,
+		"retcode": retcode,
 		"runtime": time.Since(start).Seconds(),
 	}
 
@@ -288,9 +292,7 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 // DiskCheck checks disk usage
@@ -329,9 +331,7 @@ func (a *WindowsAgent) DiskCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 // CPULoadCheck checks avg cpu load
@@ -363,9 +363,7 @@ func (a *WindowsAgent) CPULoadCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 // MemCheck checks mem percentage
@@ -395,9 +393,7 @@ func (a *WindowsAgent) MemCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 func (a *WindowsAgent) EventLogCheck(data Check) {
@@ -467,9 +463,7 @@ func (a *WindowsAgent) EventLogCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 func (a *WindowsAgent) PingCheck(data Check) {
@@ -525,9 +519,7 @@ func (a *WindowsAgent) PingCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
-	}
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
 func (a *WindowsAgent) WinSvcCheck(data Check) {
@@ -568,8 +560,22 @@ func (a *WindowsAgent) WinSvcCheck(data Check) {
 		return
 	}
 
-	if DjangoStringResp(resp.String()) == "failing" && len(data.AssignedTasks) > 0 {
-		// TODO run assigned task
+	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
+}
+
+func (a *WindowsAgent) handleAssignedTasks(status string, tasks []AssignedTask) {
+	if len(tasks) > 0 && DjangoStringResp(status) == "failing" {
+		var wg sync.WaitGroup
+		for _, t := range tasks {
+			if t.Enabled {
+				wg.Add(1)
+				go func(pk int) {
+					defer wg.Done()
+					a.RunTask(pk)
+				}(t.TaskPK)
+			}
+		}
+		wg.Wait()
 	}
 }
 
