@@ -674,6 +674,32 @@ func (a *WindowsAgent) RecoverCMD(command string) {
 	_, _ = CMDShell([]string{}, command, 18000, true)
 }
 
+func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int) ([]byte, error) {
+	var outb, errb bytes.Buffer
+	var bytesErr []byte
+	largs := len(args)
+	saltArgs := make([]string, 0)
+
+	saltArgs = []string{saltfunc}
+
+	if largs > 0 {
+		saltArgs = append(saltArgs, args...)
+	}
+
+	saltArgs = append(saltArgs, "--local", fmt.Sprintf("--timeout=%d", timeout))
+
+	cmd := exec.Command(a.SaltCall, saltArgs...)
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+
+	err := cmd.Run()
+	if err != nil {
+		a.Logger.Debugln(err)
+		return bytesErr, err
+	}
+	return outb.Bytes(), nil
+}
+
 // ShowStatus prints windows service status
 // If called from an interactive desktop, pops up a message box
 // Otherwise prints to the console

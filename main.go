@@ -67,6 +67,8 @@ func main() {
 		a.RecoverSalt()
 	case "recovermesh":
 		a.RecoverMesh()
+	case "winupdater":
+		a.InstallPatches()
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return
