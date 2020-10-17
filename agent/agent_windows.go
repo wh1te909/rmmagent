@@ -818,3 +818,47 @@ func (a *WindowsAgent) installerMsg(msg, alert string) {
 		a.Logger.Fatalln(msg)
 	}
 }
+
+// CleanupPythonAgent cleans up files from the old python agent if this is an upgrade
+func (a *WindowsAgent) CleanupPythonAgent() {
+	cderr := os.Chdir(a.ProgramDir)
+	if cderr != nil {
+		return
+	}
+
+	fileMatches := []string{
+		"*.dll",
+		"*.pyd",
+		"base_library*",
+		"*.manifest",
+		"onit.ico",
+		"VERSION",
+	}
+
+	for _, match := range fileMatches {
+		files, err := filepath.Glob(match)
+		if err == nil {
+			for _, f := range files {
+				os.Remove(f)
+			}
+		}
+	}
+
+	folderMatches := []string{
+		"certifi",
+		"Include",
+		"lib2to3",
+		"psutil",
+		"tcl",
+		"tk",
+	}
+
+	for _, match := range folderMatches {
+		folders, err := filepath.Glob(match)
+		if err == nil {
+			for _, f := range folders {
+				os.RemoveAll(f)
+			}
+		}
+	}
+}
