@@ -73,6 +73,8 @@ func main() {
 		a.SyncMeshNodeID()
 	case "cleanup":
 		a.UninstallCleanup()
+	case "fixsalt": // deprecated, will be removed in future release
+		return
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return

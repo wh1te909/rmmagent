@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	ps "github.com/elastic/go-sysinfo"
+	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 	_ "github.com/mattn/go-sqlite3" // ok
 	"github.com/shirou/gopsutil/disk"
@@ -861,4 +862,103 @@ func (a *WindowsAgent) CleanupPythonAgent() {
 			}
 		}
 	}
+
+	_, _ = a.LocalSaltCall("task.delete_task", []string{"TacticalRMM_fixsalt"}, 45)
+}
+
+// UpdateSalt downloads the latest salt minion and performs an update
+func (a *WindowsAgent) UpdateSalt() {
+	url := fmt.Sprintf("%s/api/v2/%s/saltminion/", a.Server, a.AgentID)
+	req := &APIRequest{
+		URL:       url,
+		Headers:   a.Headers,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
+	}
+
+	req.Method = "GET"
+	a.Logger.Debugln(req)
+
+	r, err := req.MakeRequest()
+	if err != nil {
+		a.Logger.Debugln(err)
+		return
+	}
+
+	if r.IsError() {
+		return
+	}
+
+	type SaltResp struct {
+		CurrentVer  string `json:"currentVer"`
+		LatestVer   string `json:"latestVer"`
+		SaltID      string `json:"salt_id"`
+		DownloadURL string `json:"downloadURL"`
+	}
+	data := SaltResp{}
+
+	if err := json.Unmarshal(r.Body(), &data); err != nil {
+		a.Logger.Debugln(err)
+		return
+	}
+
+	installedVer := a.GetProgramVersion("salt minion")
+	if data.LatestVer == installedVer {
+		a.Logger.Warnf("Salt latest ver %s same as installed ver %s. Skipping.\n", data.LatestVer, installedVer)
+		return
+	}
+
+	a.Logger.Infof("Updating salt from %s to %s\n", installedVer, data.LatestVer)
+
+	minion := filepath.Join(a.ProgramDir, a.SaltInstaller)
+	if FileExists(minion) {
+		_ = os.Remove(minion)
+	}
+
+	rClient := resty.New()
+	rClient.SetCloseConnection(true)
+	rClient.SetTimeout(45 * time.Minute)
+
+	r1, derr := rClient.R().SetOutput(minion).Get(data.DownloadURL)
+	if derr != nil {
+		a.Logger.Errorln("Unable to download salt-minion for update:", derr)
+		return
+	}
+
+	if r1.IsError() {
+		a.Logger.Errorln("Unable to download salt-minion for update:", r1.StatusCode())
+		return
+	}
+
+	updateArgs := []string{
+		a.SaltInstaller,
+		"/S",
+		"/custom-config=saltcustom",
+		fmt.Sprintf("/master=%s", a.DB.SaltMaster),
+		fmt.Sprintf("/minion-name=%s", data.SaltID),
+		"/start-minion=1",
+	}
+
+	_ = os.Chdir(a.ProgramDir)
+
+	_, _ = CMD(a.Nssm, []string{"stop", "salt-minion"}, 90, false)
+	WaitForService("salt-minion", "stopped", 10)
+	a.ForceKillSalt()
+
+	_, saltErr := CMDShell(updateArgs, "", 900, false)
+	if saltErr != nil {
+		a.Logger.Errorln("Failed to update salt:", saltErr)
+		_, _ = CMD(a.Nssm, []string{"start", "salt-minion"}, 60, false)
+		return
+	}
+
+	WaitForService("salt-minion", "running", 10)
+
+	req.URL = a.Server + "/api/v2/saltminion/"
+	req.Method = "PUT"
+	req.Payload = map[string]string{"ver": data.LatestVer, "agent_id": a.AgentID}
+	_, _ = req.MakeRequest()
+
+	a.Logger.Infof("Salt was updated from %s to %s\n", installedVer, data.LatestVer)
 }

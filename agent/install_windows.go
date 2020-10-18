@@ -74,7 +74,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	rClient := resty.New()
 	rClient.SetCloseConnection(true)
 	rClient.SetTimeout(i.Timeout * time.Second)
-	//rClient.SetDebug(a.Debug)
+	rClient.SetDebug(a.Debug)
 
 	// download or copy the salt-minion-setup.exe
 	saltMin := filepath.Join(a.ProgramDir, a.SaltInstaller)
