@@ -73,6 +73,8 @@ func main() {
 		a.SyncMeshNodeID()
 	case "cleanup":
 		a.UninstallCleanup()
+	case "updatesalt":
+		a.UpdateSalt()
 	case "fixsalt": // deprecated, will be removed in future release
 		return
 	case "taskrunner":
