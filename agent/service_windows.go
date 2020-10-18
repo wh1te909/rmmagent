@@ -36,7 +36,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	var data map[string]interface{}
 	var sleep int
 
-	url := a.Server + "/api/v2/hello/"
+	url := a.Server + "/api/v3/hello/"
 	req := &APIRequest{
 		URL:       url,
 		Headers:   a.Headers,

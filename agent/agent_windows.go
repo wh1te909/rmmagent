@@ -627,7 +627,7 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/%d/meshinfo/", a.Server, a.AgentPK)
+	url := fmt.Sprintf("%s/api/v3/%d/meshinfo/", a.Server, a.AgentPK)
 	req := &APIRequest{
 		URL:       url,
 		Method:    "GET",
@@ -869,7 +869,7 @@ func (a *WindowsAgent) CleanupPythonAgent() {
 
 // UpdateSalt downloads the latest salt minion and performs an update
 func (a *WindowsAgent) UpdateSalt() {
-	url := fmt.Sprintf("%s/api/v2/%s/saltminion/", a.Server, a.AgentID)
+	url := fmt.Sprintf("%s/api/v3/%s/saltminion/", a.Server, a.AgentID)
 	req := &APIRequest{
 		URL:       url,
 		Headers:   a.Headers,
@@ -956,7 +956,7 @@ func (a *WindowsAgent) UpdateSalt() {
 
 	WaitForService("salt-minion", "running", 10)
 
-	req.URL = a.Server + "/api/v2/saltminion/"
+	req.URL = a.Server + "/api/v3/saltminion/"
 	req.Method = "PUT"
 	req.Payload = map[string]string{"ver": data.LatestVer, "agent_id": a.AgentID}
 	_, _ = req.MakeRequest()

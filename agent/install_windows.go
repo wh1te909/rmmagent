@@ -120,7 +120,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	if i.LocalMesh == "" {
 		a.Logger.Infoln("Downloading mesh agent...")
 		payload := map[string]string{"arch": arch}
-		r, err := rClient.R().SetBody(payload).SetOutput(mesh).Post(fmt.Sprintf("%s/api/v2/meshexe/", baseURL))
+		r, err := rClient.R().SetBody(payload).SetOutput(mesh).Post(fmt.Sprintf("%s/api/v3/meshexe/", baseURL))
 		if err != nil {
 			a.installerMsg(fmt.Sprintf("Failed to download mesh agent: %s", err.Error()), "error")
 		}
@@ -139,7 +139,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		Token string `json:"token"`
 	}
 	payload := map[string]string{"agent_id": a.AgentID}
-	r, err := rClient.R().SetBody(payload).SetResult(&TokenResp{}).Post(fmt.Sprintf("%s/api/v2/newagent/", baseURL))
+	r, err := rClient.R().SetBody(payload).SetResult(&TokenResp{}).Post(fmt.Sprintf("%s/api/v3/newagent/", baseURL))
 	if err != nil {
 		a.installerMsg(err.Error(), "error")
 	}
@@ -208,7 +208,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		"monitoring_type": i.AgentType,
 	}
 
-	r, err = rClient.R().SetBody(agentPayload).SetResult(&NewAgentResp{}).Patch(fmt.Sprintf("%s/api/v2/newagent/", baseURL))
+	r, err = rClient.R().SetBody(agentPayload).SetResult(&NewAgentResp{}).Patch(fmt.Sprintf("%s/api/v3/newagent/", baseURL))
 	if err != nil {
 		a.installerMsg(err.Error(), "error")
 	}
@@ -307,7 +307,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	acceptAttempts := 0
 	acceptRetries := 20
 	for {
-		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v2/saltminion/", baseURL))
+		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v3/saltminion/", baseURL))
 		if err != nil {
 			a.Logger.Debugln(err)
 			acceptAttempts++
@@ -338,7 +338,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	syncAttempts := 0
 	syncRetries := 20
 	for {
-		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v2/saltminion/", baseURL))
+		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v3/saltminion/", baseURL))
 		if err != nil {
 			a.Logger.Debugln(err)
 			syncAttempts++
