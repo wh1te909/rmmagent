@@ -62,7 +62,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 		i.SaltMaster = u.Host
 	}
 
-	i.SaltMaster = u.Host
 	a.Logger.Debugln("Salt Master:", i.SaltMaster)
 
 	baseURL := u.Scheme + "://" + u.Host
