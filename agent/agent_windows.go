@@ -756,7 +756,7 @@ func (a *WindowsAgent) UninstallCleanup() {
 // ShowStatus prints windows service status
 // If called from an interactive desktop, pops up a message box
 // Otherwise prints to the console
-func ShowStatus() {
+func ShowStatus(version string) {
 	statusMap := make(map[string]string)
 	svcs := []string{"tacticalagent", "checkrunner", "salt-minion", "mesh agent"}
 
@@ -784,8 +784,9 @@ func ShowStatus() {
 			statusMap["tacticalagent"], statusMap["checkrunner"],
 			statusMap["salt-minion"], statusMap["mesh agent"],
 		)
-		w32.MessageBox(handle, msg, "Tactical RMM", w32.MB_OK|w32.MB_ICONINFORMATION)
+		w32.MessageBox(handle, msg, fmt.Sprintf("Tactical RMM v%s", version), w32.MB_OK|w32.MB_ICONINFORMATION)
 	} else {
+		fmt.Println("Tactical RMM Version", version)
 		fmt.Println("Agent:", statusMap["tacticalagent"])
 		fmt.Println("Check Runner:", statusMap["checkrunner"])
 		fmt.Println("Salt Minion:", statusMap["salt-minion"])

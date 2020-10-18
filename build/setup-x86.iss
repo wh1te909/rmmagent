@@ -64,24 +64,17 @@ Type: filesandordirs; Name: "{#MESHDIR}";
 procedure StopServices();
 var
   ResultCode: Integer;
-  StopTactical: string;
-  StopCheckrunner: string;
 begin
-  StopTactical := ExpandConstant(' /c "{app}\{#NSSM}"' + ' stop tacticalagent && ping 127.0.0.1 -n 5');
-  StopCheckrunner := ExpandConstant(' /c "{app}\{#NSSM}"' + ' stop checkrunner && ping 127.0.0.1 -n 5');
-  Exec('cmd.exe', StopTactical, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('cmd.exe', StopCheckrunner, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c net stop tacticalagent && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c net stop checkrunner && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure StartServices();
 var
   ResultCode: Integer;
-  StartTactical: string;
-  StartCheckrunner: string;
 begin
-  StartTactical := ExpandConstant(' /c "{app}\{#NSSM}"' + ' start tacticalagent && ping 127.0.0.1 -n 7');
-  StartCheckrunner := ExpandConstant(' /c "{app}\{#NSSM}"' + ' start checkrunner && ping 127.0.0.1 -n 3');
-  Exec('cmd.exe', StartTactical, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('cmd.exe', StartCheckrunner, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c net start tacticalagent && ping 127.0.0.1 -n 5', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c net start checkrunner', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 

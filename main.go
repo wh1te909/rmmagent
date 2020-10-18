@@ -45,7 +45,7 @@ func main() {
 	}
 
 	if len(os.Args) == 1 {
-		agent.ShowStatus()
+		agent.ShowStatus(version)
 		return
 	}
 
@@ -103,7 +103,7 @@ func main() {
 		}
 		a.Install(i)
 	default:
-		agent.ShowStatus()
+		agent.ShowStatus(version)
 	}
 }
 

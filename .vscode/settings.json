@@ -5,7 +5,6 @@
         "editor.codeActionsOnSave": {
             "source.organizeImports": false,
         },
-        // Optional: Disable snippets, as they conflict with completion ranking.
         "editor.snippetSuggestions": "none",
     },
     "[go.mod]": {
@@ -15,11 +14,8 @@
         },
     },
     "gopls": {
-        // Add parameter placeholders when completing a function.
         "usePlaceholders": true,
-
-        // If true, enable additional analyses with staticcheck.
-        // Warning: This will significantly increase memory usage.
+        "completeUnimported": true,
         "staticcheck": true,
     }
 }
