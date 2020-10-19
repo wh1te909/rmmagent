@@ -159,10 +159,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	fmt.Println(meshOut)
-
-	a.Logger.Debugln("Waiting for mesh service to be running")
-	WaitForService(a.MeshSVC, "running", 15)
-	a.Logger.Debugln("Mesh service is running")
 	a.Logger.Debugln("Sleeping for 10")
 	time.Sleep(10 * time.Second)
 
@@ -273,7 +269,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	a.Logger.Infoln("Installing the salt-minion, this might take a while...")
 	saltInstallArgs := []string{
-		a.SaltInstaller,
 		"/S",
 		"/custom-config=saltcustom",
 		fmt.Sprintf("/master=%s", i.SaltMaster),
@@ -282,20 +277,12 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	a.Logger.Debugln("Installing salt with:", saltInstallArgs)
-	_, saltErr := CMDShell(saltInstallArgs, "", int(i.Timeout), false)
+	_, saltErr := CMD(a.SaltInstaller, saltInstallArgs, int(i.Timeout), false)
 	if saltErr != nil {
 		a.installerMsg(fmt.Sprintf("Unable to install salt: %s", saltErr.Error()), "error")
 	}
 
-	a.Logger.Debugln("Waiting for salt-minion service enter the running state")
-	WaitForService("salt-minion", "running", 30)
-	a.Logger.Debugln("Salt-minion is running")
-	_, serr := WinServiceGet("salt-minion")
-	if serr != nil {
-		a.installerMsg("Salt installation failed\nCheck the log file in c:\\salt\\var\\log\\salt\\minion", "error")
-	}
-
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	// set new headers, no longer knox auth...use agent auth
 	rClient.SetHeaders(a.Headers)
@@ -367,17 +354,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// create mesh watchdog
 	a.Logger.Debugln("Creating mesh watchdog scheduled task")
 	a.CreateMeshWatchDogTask()
-
-	// remove existing services if exist
-	services := []string{"tacticalagent", "checkrunner"}
-	for _, svc := range services {
-		_, err := WinServiceGet(svc)
-		if err == nil {
-			a.Logger.Debugln(fmt.Sprintf("Found existing %s service. Removing", svc))
-			_, _ = CMD(a.Nssm, []string{"stop", svc}, 30, false)
-			_, _ = CMD(a.Nssm, []string{"remove", svc, "confirm"}, 30, false)
-		}
-	}
 
 	a.Logger.Infoln("Installing services...")
 	svcCommands := [8][]string{

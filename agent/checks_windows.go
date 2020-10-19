@@ -535,17 +535,11 @@ func (a *WindowsAgent) WinSvcCheck(data Check) {
 		Debug:     a.Debug,
 	}
 
-	srv, err := WinServiceGet(data.ServiceName)
+	status, err := GetServiceStatus(data.ServiceName)
 	if err != nil {
 		exists = false
 		status = "n/a"
 		a.Logger.Debugln("Service", data.ServiceName, err)
-	} else {
-		if derr := srv.GetServiceDetail(); derr != nil {
-			a.Logger.Debugln("Service", data.ServiceName, err)
-			return
-		}
-		status = serviceStatusText(uint32(srv.Status.State))
 	}
 
 	r.Payload = map[string]interface{}{

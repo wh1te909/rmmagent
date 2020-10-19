@@ -21,7 +21,6 @@ import (
 	"github.com/gonutz/w32"
 	_ "github.com/mattn/go-sqlite3" // ok
 	"github.com/shirou/gopsutil/disk"
-	svc "github.com/shirou/gopsutil/winservices"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -188,132 +187,6 @@ func OSInfo() (plat, osFullName string) {
 	plat = os.Platform
 	osFullName = fmt.Sprintf("%s, %s (build %s)", os.Name, arch, os.Build)
 	return
-}
-
-// https://docs.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicecontrollerstatus?view=dotnet-plat-ext-3.1
-func serviceStatusText(num uint32) string {
-	switch num {
-	case 1:
-		return "stopped"
-	case 2:
-		return "start_pending"
-	case 3:
-		return "stop_pending"
-	case 4:
-		return "running"
-	case 5:
-		return "continue_pending"
-	case 6:
-		return "pause_pending"
-	case 7:
-		return "paused"
-	default:
-		return "unknown"
-	}
-}
-
-// https://docs.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicestartmode?view=dotnet-plat-ext-3.1
-func serviceStartType(num uint32) string {
-	switch num {
-	case 0:
-		return "Boot"
-	case 1:
-		return "System"
-	case 2:
-		return "Automatic"
-	case 3:
-		return "Manual"
-	case 4:
-		return "Disabled"
-	default:
-		return "Unknown"
-	}
-}
-
-// WindowsService holds windows service info
-type WindowsService struct {
-	Name        string `json:"name"`
-	Status      string `json:"status"`
-	DisplayName string `json:"display_name"`
-	BinPath     string `json:"binpath"`
-	Description string `json:"description"`
-	Username    string `json:"username"`
-	PID         uint32 `json:"pid"`
-	StartType   string `json:"start_type"`
-}
-
-// WinServiceGet mimics psutils win_service_get
-func WinServiceGet(name string) (*svc.Service, error) {
-	srv, err := svc.NewService(name)
-	if err != nil {
-		return &svc.Service{}, err
-	}
-	return srv, nil
-}
-
-// WaitForService will wait for a service to be in X state for X retries
-func WaitForService(name string, status string, retries int) {
-	attempts := 0
-	for {
-		service, err := WinServiceGet(name)
-		if err != nil {
-			attempts++
-			time.Sleep(5 * time.Second)
-		} else {
-			service.GetServiceDetail()
-			stat := serviceStatusText(uint32(service.Status.State))
-			if stat != status {
-				attempts++
-				time.Sleep(5 * time.Second)
-			} else {
-				attempts = 0
-			}
-		}
-		if attempts == 0 || attempts >= retries {
-			break
-		}
-	}
-}
-
-// GetServices returns a list of windows services
-func (a *WindowsAgent) GetServices() []WindowsService {
-	ret := make([]WindowsService, 0)
-	services, err := svc.ListServices()
-	if err != nil {
-		a.Logger.Debugln(err)
-		return ret
-	}
-
-	for _, s := range services {
-		srv, err := svc.NewService(s.Name)
-		if err != nil {
-			continue
-		}
-
-		derr := srv.GetServiceDetail()
-		conf, qerr := srv.QueryServiceConfig()
-		if derr == nil && qerr == nil {
-			winsvc := WindowsService{
-				Name:        s.Name,
-				Status:      serviceStatusText(uint32(srv.Status.State)),
-				DisplayName: conf.DisplayName,
-				BinPath:     conf.BinaryPathName,
-				Description: conf.Description,
-				Username:    conf.ServiceStartName,
-				PID:         uint32(srv.Status.Pid),
-				StartType:   serviceStartType(uint32(conf.StartType)),
-			}
-			ret = append(ret, winsvc)
-		} else {
-			if derr != nil {
-				a.Logger.Debugln(derr)
-			}
-			if qerr != nil {
-				a.Logger.Debugln(qerr)
-			}
-		}
-	}
-	return ret
 }
 
 // Disk holds physical disk info
@@ -585,12 +458,11 @@ func (a *WindowsAgent) ForceKillMesh() {
 func (a *WindowsAgent) RecoverSalt() {
 	saltSVC := "salt-minion"
 	a.Logger.Debugln("Attempting salt recovery on", a.Hostname)
-	defer CMD(a.Nssm, []string{"start", saltSVC}, 45, false)
+	defer CMD(a.Nssm, []string{"start", saltSVC}, 60, false)
 
-	CMD(a.Nssm, []string{"stop", saltSVC}, 45, false)
-	WaitForService(saltSVC, "stopped", 15)
+	_, _ = CMD(a.Nssm, []string{"stop", saltSVC}, 120, false)
 	a.ForceKillSalt()
-	CMD("ipconfig", []string{"flushdns"}, 15, false)
+	_, _ = CMD("ipconfig", []string{"flushdns"}, 15, false)
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
@@ -663,11 +535,9 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 //RecoverMesh recovers mesh agent
 func (a *WindowsAgent) RecoverMesh() {
 	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
-	defer CMD("sc.exe", []string{"start", a.MeshSVC}, 20, false)
+	defer CMD("net", []string{"start", a.MeshSVC}, 60, false)
 
-	args := []string{"stop", a.MeshSVC}
-	CMD("sc.exe", args, 45, false)
-	WaitForService(a.MeshSVC, "stopped", 5)
+	_, _ = CMD("net", []string{"stop", a.MeshSVC}, 60, false)
 	a.ForceKillMesh()
 	a.SyncMeshNodeID()
 }
@@ -761,16 +631,12 @@ func ShowStatus(version string) {
 	svcs := []string{"tacticalagent", "checkrunner", "salt-minion", "mesh agent"}
 
 	for _, service := range svcs {
-		srv, err := WinServiceGet(service)
+		status, err := GetServiceStatus(service)
 		if err != nil {
 			statusMap[service] = "Not Installed"
 			continue
 		}
-		if derr := srv.GetServiceDetail(); derr != nil {
-			statusMap[service] = "Unknown"
-			continue
-		}
-		statusMap[service] = serviceStatusText(uint32(srv.Status.State))
+		statusMap[service] = status
 	}
 
 	window := w32.GetForegroundWindow()
@@ -931,9 +797,10 @@ func (a *WindowsAgent) UpdateSalt() {
 		a.Logger.Errorln("Unable to download salt-minion for update:", r1.StatusCode())
 		return
 	}
+	_, _ = CMD(a.Nssm, []string{"stop", "salt-minion"}, 120, false)
+	_ = os.Chdir(a.ProgramDir)
 
 	updateArgs := []string{
-		a.SaltInstaller,
 		"/S",
 		"/custom-config=saltcustom",
 		fmt.Sprintf("/master=%s", a.DB.SaltMaster),
@@ -941,20 +808,13 @@ func (a *WindowsAgent) UpdateSalt() {
 		"/start-minion=1",
 	}
 
-	_ = os.Chdir(a.ProgramDir)
+	_, saltErr := CMD(a.SaltInstaller, updateArgs, 900, false)
 
-	_, _ = CMD(a.Nssm, []string{"stop", "salt-minion"}, 90, false)
-	WaitForService("salt-minion", "stopped", 10)
-	a.ForceKillSalt()
-
-	_, saltErr := CMDShell(updateArgs, "", 900, false)
 	if saltErr != nil {
 		a.Logger.Errorln("Failed to update salt:", saltErr)
 		_, _ = CMD(a.Nssm, []string{"start", "salt-minion"}, 60, false)
 		return
 	}
-
-	WaitForService("salt-minion", "running", 10)
 
 	req.URL = a.Server + "/api/v3/saltminion/"
 	req.Method = "PUT"

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/sirupsen/logrus"
@@ -119,7 +120,12 @@ func setupLogging(level *string, to *string) {
 	if *to == "stdout" {
 		log.SetOutput(os.Stdout)
 	} else {
-		logFile, _ = os.OpenFile("agent.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+		switch runtime.GOOS {
+		case "windows":
+			logFile, _ = os.OpenFile(filepath.Join(os.Getenv("ProgramFiles"), "TacticalAgent", "agent.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+		case "linux":
+			// todo
+		}
 		log.SetOutput(logFile)
 	}
 }
