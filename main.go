@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	version = "1.0.0"
+	version = "0.98.92"
 	log     = logrus.New()
 	logFile *os.File
 )
@@ -56,6 +56,8 @@ func main() {
 	a := *agent.New(log, version)
 
 	switch *mode {
+	case "pk":
+		fmt.Println(a.AgentPK)
 	case "checkrunner":
 		a.CheckRunner()
 	case "winagentsvc":

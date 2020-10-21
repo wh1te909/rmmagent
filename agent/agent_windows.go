@@ -22,6 +22,7 @@ import (
 	_ "github.com/mattn/go-sqlite3" // ok
 	"github.com/shirou/gopsutil/disk"
 	"github.com/sirupsen/logrus"
+	wapf "github.com/wh1te909/go-win64api"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -376,26 +377,20 @@ func DisableSleepHibernate() {
 	_, _ = CMDShell(args, "powercfg -S SCHEME_CURRENT", 5, false)
 }
 
-// LoggedOnUser returns active logged on console user
+// LoggedOnUser returns the first logged on user it finds
 func LoggedOnUser() string {
-	qwinsta := filepath.Join(os.Getenv("WINDIR"), "System32", "qwinsta.exe")
-	out, err := exec.Command(qwinsta).Output()
+	users, err := wapf.ListLoggedInUsers()
 	if err != nil {
 		return "None"
 	}
-	lines := strings.Split(string(out), "\n")
-	for _, i := range lines {
-		if strings.Contains(i, "console") && strings.Contains(i, "Active") {
-			words := strings.Fields(i)
-			if len(words) > 3 {
-				return words[1]
-			}
-		} else if strings.Contains(i, "rdp") && strings.Contains(i, "Active") {
-			words := strings.Fields(i)
-			if len(words) > 3 {
-				return words[1]
-			}
-		}
+
+	if len(users) == 0 {
+		return "None"
+	}
+
+	for _, u := range users {
+		// remove the computername or domain
+		return strings.Split(u.FullUser(), `\`)[1]
 	}
 	return "None"
 }

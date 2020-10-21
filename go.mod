@@ -13,5 +13,6 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/tc-hib/goversioninfo v0.0.0-20200813185747-90ffbaa484a7 // indirect
 	github.com/tc-hib/rsrc v0.9.1 // indirect
+	github.com/wh1te909/go-win64api v0.0.0-20201021040544-8fba2a0fc3d0
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634
 )
