@@ -37,10 +37,9 @@ type LocalSaltUpdate struct {
 
 func (a *WindowsAgent) InstallPatches() {
 	data := WindowsUpdates{}
-	url := fmt.Sprintf("%s/api/v3/%s/winupdater/", a.Server, a.AgentID)
 
 	r := &APIRequest{
-		URL:       url,
+		URL:       fmt.Sprintf("%s/api/v3/%s/winupdater/", a.Server, a.AgentID),
 		Method:    "GET",
 		Headers:   a.Headers,
 		Timeout:   30,
@@ -71,6 +70,7 @@ func (a *WindowsAgent) InstallPatches() {
 
 	saltdata := LocalSaltUpdate{}
 
+	url := fmt.Sprintf("%s/api/v3/winupdater/", a.Server)
 	for _, patch := range data {
 		out, err := a.LocalSaltCall("win_wua.get", []string{patch.KB, "download=True", "install=True"}, 7200)
 		if err != nil {
@@ -111,4 +111,31 @@ func (a *WindowsAgent) InstallPatches() {
 			a.Logger.Debugln(rerr)
 		}
 	}
+
+	type LocalSaltNeedsReboot struct {
+		Local bool `json:"local"`
+	}
+
+	out, err := a.LocalSaltCall("win_wua.get_needs_reboot", []string{}, 60)
+	if err != nil {
+		return
+	}
+
+	needsReboot := LocalSaltNeedsReboot{}
+	if err := json.Unmarshal(out, &needsReboot); err != nil {
+		return
+	}
+
+	r.URL = url
+	r.Method = "POST"
+	r.Payload = map[string]interface{}{
+		"agent_id": a.AgentID,
+		"reboot":   needsReboot.Local,
+	}
+
+	_, rerr := r.MakeRequest()
+	if rerr != nil {
+		a.Logger.Debugln(rerr)
+	}
+
 }
