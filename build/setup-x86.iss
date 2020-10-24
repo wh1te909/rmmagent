@@ -52,6 +52,7 @@ Filename: "{app}\{#NSSM}"; Parameters: "remove tacticalagent confirm"; RunOnceId
 Filename: "{app}\{#NSSM}"; Parameters: "stop checkrunner"; RunOnceId: "stopcheckrun";
 Filename: "{app}\{#NSSM}"; Parameters: "remove checkrunner confirm"; RunOnceId: "removecheckrun";
 Filename: "{app}\{#MyAppExeName}"; Parameters: "-m cleanup"; RunOnceId: "cleanuprm";
+Filename: "{cmd}"; Parameters: "/c taskkill /F /IM tacticalrmm.exe"; RunOnceId: "killtacrmm";
 Filename: "{#SALTUNINSTALL}"; Parameters: "/S"; RunOnceId: "saltrm";
 Filename: "{app}\{#MESHEXE}"; Parameters: "-fulluninstall"; RunOnceId: "meshrm";
 
