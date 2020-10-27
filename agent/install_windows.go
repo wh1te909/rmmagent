@@ -154,9 +154,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	if meshErr != nil {
 		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", meshErr.Error()), "error")
 	}
-	if meshOut[1] != "" {
-		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", meshOut[1]), "error")
-	}
 
 	fmt.Println(meshOut)
 	a.Logger.Debugln("Sleeping for 10")
@@ -276,7 +273,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		"/start-minion=1",
 	}
 
-	a.Logger.Debugln("Installing salt with:", saltInstallArgs)
+	a.Logger.Debugln("Installing salt with:", a.SaltInstaller, saltInstallArgs)
 	_, saltErr := CMD(a.SaltInstaller, saltInstallArgs, int(i.Timeout), false)
 	if saltErr != nil {
 		a.installerMsg(fmt.Sprintf("Unable to install salt: %s", saltErr.Error()), "error")
@@ -370,11 +367,8 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	for _, s := range svcCommands {
-		a.Logger.Debugln(s)
-		_, nssmErr := CMD(a.Nssm, s, 15, false)
-		if nssmErr != nil {
-			a.installerMsg(nssmErr.Error(), "error")
-		}
+		a.Logger.Debugln(a.Nssm, s)
+		_, _ = CMD(a.Nssm, s, 25, false)
 	}
 
 	if i.Power {
