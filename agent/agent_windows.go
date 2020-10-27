@@ -457,6 +457,13 @@ func (a *WindowsAgent) RecoverSalt() {
 
 	_, _ = CMD(a.Nssm, []string{"stop", saltSVC}, 120, false)
 	a.ForceKillSalt()
+	time.Sleep(2 * time.Second)
+	cacheDir := filepath.Join(a.SystemDrive, "\\salt", "var", "cache", "salt", "minion")
+	a.Logger.Debugln("Clearing salt cache in", cacheDir)
+	err := os.RemoveAll(cacheDir)
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
 	_, _ = CMD("ipconfig", []string{"flushdns"}, 15, false)
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
