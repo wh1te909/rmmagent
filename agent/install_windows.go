@@ -137,7 +137,9 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Mesh agent:", mesh)
 	meshOut, meshErr := CMD(mesh, []string{"-fullinstall"}, int(60), false)
 	if meshErr != nil {
-		a.installerMsg(fmt.Sprintf("Failed to install mesh agent: %s", meshErr.Error()), "error")
+		fmt.Println(meshOut[0])
+		fmt.Println(meshOut[1])
+		fmt.Println(meshErr)
 	}
 
 	fmt.Println(meshOut)
