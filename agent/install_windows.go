@@ -133,21 +133,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 		}
 	}
 
-	// get agent's token
-	type TokenResp struct {
-		Token string `json:"token"`
-	}
-	payload := map[string]string{"agent_id": a.AgentID}
-	r, err := rClient.R().SetBody(payload).SetResult(&TokenResp{}).Post(fmt.Sprintf("%s/api/v3/newagent/", baseURL))
-	if err != nil {
-		a.installerMsg(err.Error(), "error")
-	}
-	if r.StatusCode() != 200 {
-		a.installerMsg(r.String(), "error")
-	}
-
-	agentToken := r.Result().(*TokenResp).Token
-
 	a.Logger.Infoln("Installing mesh agent...")
 	a.Logger.Debugln("Mesh agent:", mesh)
 	meshOut, meshErr := CMD(mesh, []string{"-fullinstall"}, int(60), false)
@@ -189,6 +174,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	type NewAgentResp struct {
 		AgentPK int    `json:"pk"`
 		SaltID  string `json:"saltid"`
+		Token   string `json:"token"`
 	}
 	agentPayload := map[string]interface{}{
 		"agent_id":        a.AgentID,
@@ -200,7 +186,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		"monitoring_type": i.AgentType,
 	}
 
-	r, err = rClient.R().SetBody(agentPayload).SetResult(&NewAgentResp{}).Patch(fmt.Sprintf("%s/api/v3/newagent/", baseURL))
+	r, err := rClient.R().SetBody(agentPayload).SetResult(&NewAgentResp{}).Post(fmt.Sprintf("%s/api/v3/newagent/", baseURL))
 	if err != nil {
 		a.installerMsg(err.Error(), "error")
 	}
@@ -210,6 +196,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	agentPK := r.Result().(*NewAgentResp).AgentPK
 	saltID := r.Result().(*NewAgentResp).SaltID
+	agentToken := r.Result().(*NewAgentResp).Token
 
 	a.Logger.Debugln("Agent token:", agentToken)
 	a.Logger.Debugln("Agent PK:", agentPK)
