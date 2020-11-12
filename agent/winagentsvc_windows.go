@@ -20,13 +20,18 @@ type HelloPost struct {
 
 //HelloPatch patch
 type HelloPatch struct {
-	Agentid  string           `json:"agent_id"`
-	Services []WindowsService `json:"services"`
-	PublicIP string           `json:"public_ip"`
-	Disks    []Disk           `json:"disks"`
-	Username string           `json:"logged_in_username"`
-	Version  string           `json:"version"`
-	BootTime int64            `json:"boot_time"`
+	Agentid     string           `json:"agent_id"`
+	Hostname    string           `json:"hostname"`
+	OS          string           `json:"operating_system"`
+	TotalRAM    float64          `json:"total_ram"`
+	Platform    string           `json:"plat"`
+	Services    []WindowsService `json:"services"`
+	PublicIP    string           `json:"public_ip"`
+	Disks       []Disk           `json:"disks"`
+	Username    string           `json:"logged_in_username"`
+	Version     string           `json:"version"`
+	BootTime    int64            `json:"boot_time"`
+	SaltVersion string           `json:"salt_ver"`
 }
 
 // WinAgentSvc tacticalagent windows nssm service
@@ -36,6 +41,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	var data map[string]interface{}
 	var sleep int
 
+	time.Sleep(20 * time.Second)
 	url := a.Server + "/api/v3/hello/"
 	req := &APIRequest{
 		URL:       url,
@@ -46,6 +52,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	}
 
 	plat, osinfo := OSInfo()
+	saltVer := a.GetProgramVersion("salt minion")
 
 	postPayload := HelloPost{
 		Agentid:     a.AgentID,
@@ -55,7 +62,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 		Platform:    plat,
 		Version:     a.Version,
 		BootTime:    BootTime(),
-		SaltVersion: a.GetProgramVersion("salt minion"),
+		SaltVersion: saltVer,
 	}
 
 	req.Method = "POST"
@@ -71,13 +78,18 @@ func (a *WindowsAgent) WinAgentSvc() {
 
 	for {
 		patchPayload := HelloPatch{
-			Agentid:  a.AgentID,
-			Services: a.GetServices(),
-			PublicIP: PublicIP(),
-			Disks:    a.GetDisks(),
-			Username: LoggedOnUser(),
-			Version:  a.Version,
-			BootTime: BootTime(),
+			Agentid:     a.AgentID,
+			Hostname:    a.Hostname,
+			OS:          osinfo,
+			TotalRAM:    TotalRAM(),
+			Platform:    plat,
+			Services:    a.GetServices(),
+			PublicIP:    PublicIP(),
+			Disks:       a.GetDisks(),
+			Username:    LoggedOnUser(),
+			Version:     a.Version,
+			BootTime:    BootTime(),
+			SaltVersion: saltVer,
 		}
 
 		req.Method = "PATCH"

@@ -66,6 +66,7 @@ type AllChecks struct {
 
 func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Infoln("Checkrunner service started.")
+	time.Sleep(15 * time.Second)
 	for {
 		interval, _ := a.RunChecks()
 		a.Logger.Debugln("Sleeping for", interval)
