@@ -20,7 +20,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 	_ "github.com/mattn/go-sqlite3" // ok
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
 	wapf "github.com/wh1te909/go-win64api"
 	"golang.org/x/sys/windows"
@@ -237,7 +237,7 @@ func (a *WindowsAgent) GetDisks() []Disk {
 }
 
 // CMDShell mimics python's `subprocess.run(shell=True)`
-func CMDShell(cmdArgs []string, command string, timeout int, detached bool) (output [2]string, e error) {
+func CMDShell(shell string, cmdArgs []string, command string, timeout int, detached bool) (output [2]string, e error) {
 	var (
 		outb     bytes.Buffer
 		errb     bytes.Buffer
@@ -249,10 +249,21 @@ func CMDShell(cmdArgs []string, command string, timeout int, detached bool) (out
 	defer cancel()
 
 	if len(cmdArgs) > 0 && command == "" {
-		cmdArgs = append([]string{"/C"}, cmdArgs...)
-		cmd = exec.Command("cmd.exe", cmdArgs...)
+		switch shell {
+		case "cmd":
+			cmdArgs = append([]string{"/C"}, cmdArgs...)
+			cmd = exec.Command("cmd.exe", cmdArgs...)
+		case "powershell":
+			cmdArgs = append([]string{"-NonInteractive", "-NoProfile"}, cmdArgs...)
+			cmd = exec.Command("powershell.exe", cmdArgs...)
+		}
 	} else {
-		cmd = exec.Command("cmd.exe", "/C", command)
+		switch shell {
+		case "cmd":
+			cmd = exec.Command("cmd.exe", "/C", command)
+		case "powershell":
+			cmd = exec.Command("Powershell", "-NonInteractive", "-NoProfile", command)
+		}
 	}
 
 	// https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
@@ -318,7 +329,7 @@ func CMD(exe string, args []string, timeout int, detached bool) (output [2]strin
 func EnablePing() {
 	args := make([]string, 0)
 	cmd := `netsh advfirewall firewall add rule name="ICMP Allow incoming V4 echo request" protocol=icmpv4:8,any dir=in action=allow`
-	_, err := CMDShell(args, cmd, 10, false)
+	_, err := CMDShell("cmd", args, cmd, 10, false)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -339,7 +350,7 @@ func EnableRDP() {
 
 	args := make([]string, 0)
 	cmd := `netsh advfirewall firewall set rule group="remote desktop" new enable=Yes`
-	_, cerr := CMDShell(args, cmd, 10, false)
+	_, cerr := CMDShell("cmd", args, cmd, 10, false)
 	if cerr != nil {
 		fmt.Println(cerr)
 	}
@@ -366,15 +377,15 @@ func DisableSleepHibernate() {
 		wg.Add(1)
 		go func(c string) {
 			defer wg.Done()
-			_, _ = CMDShell(args, fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), 5, false)
-			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), 5, false)
-			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), 5, false)
-			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), 5, false)
-			_, _ = CMDShell(args, fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell("cmd", args, fmt.Sprintf("powercfg /set%svalueindex scheme_current sub_buttons lidaction 0", c), 5, false)
+			_, _ = CMDShell("cmd", args, fmt.Sprintf("powercfg /x -standby-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell("cmd", args, fmt.Sprintf("powercfg /x -hibernate-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell("cmd", args, fmt.Sprintf("powercfg /x -disk-timeout-%s 0", c), 5, false)
+			_, _ = CMDShell("cmd", args, fmt.Sprintf("powercfg /x -monitor-timeout-%s 0", c), 5, false)
 		}(i)
 	}
 	wg.Wait()
-	_, _ = CMDShell(args, "powercfg -S SCHEME_CURRENT", 5, false)
+	_, _ = CMDShell("cmd", args, "powercfg -S SCHEME_CURRENT", 5, false)
 }
 
 // LoggedOnUser returns the first logged on user it finds
@@ -548,7 +559,7 @@ func (a *WindowsAgent) RecoverMesh() {
 func (a *WindowsAgent) RecoverCMD(command string) {
 	a.Logger.Debugln("Attempting shell recovery on", a.Hostname)
 	a.Logger.Debugln(command)
-	_, _ = CMDShell([]string{}, command, 18000, true)
+	_, _ = CMDShell("cmd", []string{}, command, 18000, true)
 }
 
 func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int) ([]byte, error) {

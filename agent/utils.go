@@ -13,7 +13,7 @@ import (
 
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
-	"github.com/shirou/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 var client = resty.New()

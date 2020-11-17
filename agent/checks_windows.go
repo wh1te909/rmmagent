@@ -15,8 +15,8 @@ import (
 	"time"
 
 	ps "github.com/elastic/go-sysinfo"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
 )
 
 type AssignedTask struct {
