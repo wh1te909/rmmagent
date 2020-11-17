@@ -9,7 +9,6 @@ import (
 	"math"
 	"os"
 	"os/exec"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -398,50 +397,7 @@ func (a *WindowsAgent) MemCheck(data Check) {
 }
 
 func (a *WindowsAgent) EventLogCheck(data Check) {
-	content := []byte(eventLogPyScript)
-	dir, err := ioutil.TempDir("", "pyevtlog")
-	if err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-	defer os.RemoveAll(dir)
-
-	tmpfn, _ := ioutil.TempFile(dir, "*.py")
-	if _, err := tmpfn.Write(content); err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-	if err := tmpfn.Close(); err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-
-	cmdArgs := []string{tmpfn.Name(), data.LogName, strconv.Itoa(data.SearchLastDays)}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(180)*time.Second)
-	defer cancel()
-
-	var outb, errb bytes.Buffer
-	cmd := exec.CommandContext(ctx, a.PyBin, cmdArgs...)
-	cmd.Stdout = &outb
-	cmd.Stderr = &errb
-
-	cmdErr := cmd.Run()
-
-	if ctx.Err() == context.DeadlineExceeded {
-		a.Logger.Debugln("Event log check:", ctx.Err())
-		return
-	}
-
-	if cmdErr != nil {
-		a.Logger.Debugln("Event log check:", cmdErr)
-		return
-	}
-
-	if errb.String() != "" {
-		a.Logger.Debugln("Event log check:", errb.String())
-		return
-	}
+	evtLog := a.GetEventLog(data.LogName, data.SearchLastDays)
 
 	url := a.Server + "/api/v3/checkrunner/"
 	r := &APIRequest{
@@ -455,7 +411,7 @@ func (a *WindowsAgent) EventLogCheck(data Check) {
 
 	r.Payload = map[string]interface{}{
 		"id":  data.CheckPK,
-		"log": outb.String(),
+		"log": evtLog,
 	}
 
 	resp, err := r.MakeRequest()
@@ -573,94 +529,3 @@ func (a *WindowsAgent) handleAssignedTasks(status string, tasks []AssignedTask) 
 		wg.Wait()
 	}
 }
-
-// temp until rewrite this in go
-var eventLogPyScript = `
-import base64
-import json
-import sys
-import zlib
-import datetime as dt
-
-import win32con
-import win32evtlog
-import win32evtlogutil
-import winerror
-
-try:
-	log = []
-	api_log_name = str(sys.argv[1])
-	api_search_last_days = int(sys.argv[2])
-
-	if api_search_last_days != 0:
-		start_time = dt.datetime.now() - dt.timedelta(days=api_search_last_days)
-
-	flags = (win32evtlog.EVENTLOG_BACKWARDS_READ | win32evtlog.EVENTLOG_SEQUENTIAL_READ)
-
-	status_dict = {
-		win32con.EVENTLOG_AUDIT_FAILURE: "AUDIT_FAILURE",
-		win32con.EVENTLOG_AUDIT_SUCCESS: "AUDIT_SUCCESS",
-		win32con.EVENTLOG_INFORMATION_TYPE: "INFO",
-		win32con.EVENTLOG_WARNING_TYPE: "WARNING",
-		win32con.EVENTLOG_ERROR_TYPE: "ERROR",
-		0: "INFO",
-	}
-
-	hand = win32evtlog.OpenEventLog("localhost", api_log_name)
-	total = win32evtlog.GetNumberOfEventLogRecords(hand)
-	uid = 0
-	done = False
-
-	while 1:
-		events = win32evtlog.ReadEventLog(hand, flags, 0)
-		for ev_obj in events:
-
-			uid += 1
-			# return once total number of events reach or we'll be stuck in an infinite loop
-			if uid >= total:
-				done = True
-				break
-
-			the_time = ev_obj.TimeGenerated.Format()
-			time_obj = dt.datetime.strptime(the_time, "%c")
-
-			if api_search_last_days != 0:
-				if time_obj < start_time:
-					done = True
-					break
-
-			computer = str(ev_obj.ComputerName)
-			src = str(ev_obj.SourceName)
-			evt_type = str(status_dict[ev_obj.EventType])
-			evt_id = str(winerror.HRESULT_CODE(ev_obj.EventID))
-			evt_category = str(ev_obj.EventCategory)
-			record = str(ev_obj.RecordNumber)
-			msg = (
-				str(win32evtlogutil.SafeFormatMessage(ev_obj, api_log_name))
-				.replace("<", "")
-				.replace(">", "")
-			)
-
-			event_dict = {
-				"computer": computer,
-				"source": src,
-				"eventType": evt_type,
-				"eventID": evt_id,
-				"eventCategory": evt_category,
-				"message": msg,
-				"time": the_time,
-				"record": record,
-				"uid": uid,
-			}
-			log.append(event_dict)
-
-		if done:
-			break
-
-	win32evtlog.CloseEventLog(hand)
-
-	encoded = base64.b64encode(zlib.compress(json.dumps(log).encode("utf-8", errors="ignore"))).decode("ascii", errors="ignore")
-	print(encoded, end='')
-except:
-	print("", end='')
-`

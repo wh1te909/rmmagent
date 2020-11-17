@@ -105,17 +105,17 @@ func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []EventLo
 func getEventType(et uint16) string {
 	switch et {
 	case windows.EVENTLOG_INFORMATION_TYPE:
-		return "Information"
+		return "INFO"
 	case windows.EVENTLOG_WARNING_TYPE:
-		return "Warning"
+		return "WARNING"
 	case windows.EVENTLOG_ERROR_TYPE:
-		return "Error"
+		return "ERROR"
 	case windows.EVENTLOG_SUCCESS:
-		return "Success"
+		return "SUCCESS"
 	case windows.EVENTLOG_AUDIT_SUCCESS:
-		return "Audit Success"
+		return "AUDIT_SUCCESS"
 	case windows.EVENTLOG_AUDIT_FAILURE:
-		return "Audit Failure"
+		return "AUDIT_FAILURE"
 	default:
 		return "Unknown"
 	}
