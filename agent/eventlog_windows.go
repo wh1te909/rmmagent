@@ -22,7 +22,7 @@ type EventLogMsg struct {
 	UID       int    `json:"uid"` // for vue
 }
 
-func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int64) []EventLogMsg {
+func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []EventLogMsg {
 	var (
 		oldestLog uint32
 		nextSize  uint32
