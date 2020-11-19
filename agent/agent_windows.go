@@ -557,9 +557,15 @@ func (a *WindowsAgent) RecoverMesh() {
 
 //RecoverCMD runs a shell recovery command
 func (a *WindowsAgent) RecoverCMD(command string) {
-	a.Logger.Debugln("Attempting shell recovery on", a.Hostname)
-	a.Logger.Debugln(command)
-	_, _ = CMDShell("cmd", []string{}, command, 18000, true)
+	a.Logger.Infoln("Attempting shell recovery with command:", command)
+	// call the command with cmd /C so that the parent process is cmd
+	// and not tacticalrmm.exe so that we don't kill ourself
+	cmd := exec.Command("cmd.exe")
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		CmdLine:       fmt.Sprintf("cmd.exe /C %s", command), // properly escape in case double quotes are in the command
+	}
+	cmd.Start()
 }
 
 func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int) ([]byte, error) {

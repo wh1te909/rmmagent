@@ -113,7 +113,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 							go a.RecoverMesh()
 						case "command":
 							if cmd, ok := data["cmd"].(string); ok {
-								go a.RecoverCMD(cmd)
+								a.RecoverCMD(cmd)
 							}
 						}
 					}
