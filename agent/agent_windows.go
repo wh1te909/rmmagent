@@ -706,6 +706,33 @@ func (a *WindowsAgent) installerMsg(msg, alert string) {
 	}
 }
 
+func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
+	updater := filepath.Join(a.ProgramDir, inno)
+	a.Logger.Infof("Agent updating from %s to %s", a.Version, version)
+	a.Logger.Infoln("Downloading agent update from", url)
+
+	rClient := resty.New()
+	rClient.SetCloseConnection(true)
+	rClient.SetTimeout(15 * time.Minute)
+	rClient.SetDebug(a.Debug)
+	r, err := rClient.R().SetOutput(updater).Get(url)
+	if err != nil {
+		a.Logger.Errorln(err)
+		return
+	}
+	if r.IsError() {
+		a.Logger.Errorln("Download failed with status code", r.StatusCode())
+		return
+	}
+
+	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES"}
+	cmd := exec.Command("cmd.exe", args...)
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+	}
+	cmd.Start()
+}
+
 // CleanupPythonAgent cleans up files from the old python agent if this is an upgrade
 func (a *WindowsAgent) CleanupPythonAgent() {
 	cderr := os.Chdir(a.ProgramDir)

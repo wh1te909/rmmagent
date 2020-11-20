@@ -105,6 +105,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 				if err := json.Unmarshal(r.Body(), &data); err != nil {
 					a.Logger.Debugln(err)
 				} else {
+					// recovery
 					if action, ok := data["recovery"].(string); ok {
 						switch action {
 						case "salt":
@@ -114,6 +115,14 @@ func (a *WindowsAgent) WinAgentSvc() {
 						case "command":
 							if cmd, ok := data["cmd"].(string); ok {
 								a.RecoverCMD(cmd)
+							}
+						}
+					}
+					// agent update
+					if version, ok := data["version"].(string); ok {
+						if inno, iok := data["inno"].(string); iok {
+							if url, uok := data["url"].(string); uok {
+								a.AgentUpdate(url, inno, version)
 							}
 						}
 					}
