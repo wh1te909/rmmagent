@@ -101,46 +101,46 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 		switch check.CheckType {
 		case "diskspace":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.DiskCheck(c)
-			}(check)
+			}(check, &wg)
 		case "cpuload":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.CPULoadCheck(c)
-			}(check)
+			}(check, &wg)
 		case "memory":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.MemCheck(c)
-			}(check)
+			}(check, &wg)
 		case "ping":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.PingCheck(c)
-			}(check)
+			}(check, &wg)
 		case "script":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.ScriptCheck(c)
-			}(check)
+			}(check, &wg)
 		case "winsvc":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.WinSvcCheck(c)
-			}(check)
+			}(check, &wg)
 		case "eventlog":
 			wg.Add(1)
-			go func(c Check) {
+			go func(c Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.EventLogCheck(c)
-			}(check)
+			}(check, &wg)
 		default:
 			continue
 		}
