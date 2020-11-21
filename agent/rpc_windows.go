@@ -23,7 +23,7 @@ func (a *WindowsAgent) RunRPC() {
 	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
-		fmt.Println(err)
+		a.Logger.Errorln(err)
 	}
 
 	nc.Subscribe(a.AgentID, func(msg *nats.Msg) {
@@ -34,7 +34,7 @@ func (a *WindowsAgent) RunRPC() {
 
 		dec := codec.NewDecoderBytes(msg.Data, &mh)
 		if err := dec.Decode(&payload); err != nil {
-			fmt.Println(err)
+			a.Logger.Errorln(err)
 			return
 		}
 
@@ -83,12 +83,42 @@ func (a *WindowsAgent) RunRPC() {
 
 				msg.Respond(resp)
 			}(payload)
+
+		case "winservices":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				svcs := a.GetServices()
+				ret.Encode(svcs)
+				msg.Respond(resp)
+			}()
+
+		case "winsvcdetail":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				svcName := p.Data["name"]
+				svc := a.GetServiceDetail(svcName)
+				ret.Encode(svc)
+				msg.Respond(resp)
+			}(payload)
+
+		case "winsvcaction":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				svcName := p.Data["name"]
+				action := p.Data["action"]
+				retData := a.ControlService(svcName, action)
+				ret.Encode(retData)
+				msg.Respond(resp)
+			}(payload)
 		}
 	})
 	nc.Flush()
 
 	if err := nc.LastError(); err != nil {
-		fmt.Println(err)
+		a.Logger.Errorln(err)
 		return
 	}
 
