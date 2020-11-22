@@ -92,6 +92,52 @@ func (a *WindowsAgent) ControlService(name, action string) WinSvcResp {
 	return WinSvcResp{Success: false, ErrorMsg: "Something went wrong"}
 }
 
+func (a *WindowsAgent) EditService(name, startupType string) WinSvcResp {
+	conn, err := mgr.Connect()
+	if err != nil {
+		return WinSvcResp{Success: false, ErrorMsg: err.Error()}
+	}
+	defer conn.Disconnect()
+
+	srv, err := conn.OpenService(name)
+	if err != nil {
+		return WinSvcResp{Success: false, ErrorMsg: err.Error()}
+	}
+	defer srv.Close()
+
+	conf, err := srv.Config()
+	if err != nil {
+		return WinSvcResp{Success: false, ErrorMsg: err.Error()}
+	}
+
+	var startType uint32
+	switch startupType {
+	case "auto":
+		startType = 2
+	case "autodelay":
+		startType = 2
+	case "manual":
+		startType = 3
+	case "disabled":
+		startType = 4
+	default:
+		return WinSvcResp{Success: false, ErrorMsg: "Unknown startup type provided"}
+	}
+
+	conf.StartType = startType
+	if startupType == "autodelay" {
+		conf.DelayedAutoStart = true
+	} else if startupType == "auto" {
+		conf.DelayedAutoStart = false
+	}
+
+	err = srv.UpdateConfig(conf)
+	if err != nil {
+		return WinSvcResp{Success: false, ErrorMsg: err.Error()}
+	}
+	return WinSvcResp{Success: true, ErrorMsg: ""}
+}
+
 func (a *WindowsAgent) GetServiceDetail(name string) WindowsService {
 	ret := WindowsService{}
 

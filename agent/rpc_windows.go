@@ -113,6 +113,17 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)
+
+		case "editwinsvc":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				svcName := p.Data["name"]
+				startType := p.Data["startType"]
+				retData := a.EditService(svcName, startType)
+				ret.Encode(retData)
+				msg.Respond(resp)
+			}(payload)
 		}
 	})
 	nc.Flush()
