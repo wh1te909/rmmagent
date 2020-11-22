@@ -55,6 +55,8 @@ func main() {
 	a := *agent.New(log, version)
 
 	switch *mode {
+	case "rpc":
+		a.RunRPC()
 	case "pk":
 		fmt.Println(a.AgentPK)
 	case "checkrunner":
@@ -90,7 +92,7 @@ func main() {
 			installUsage()
 			return
 		}
-		i := &agent.Installer{
+		a.Install(&agent.Installer{
 			RMM:         *api,
 			ClientID:    *clientID,
 			SiteID:      *siteID,
@@ -104,8 +106,7 @@ func main() {
 			LocalMesh:   *localMesh,
 			Cert:        *cert,
 			Timeout:     *timeout,
-		}
-		a.Install(i)
+		})
 	default:
 		agent.ShowStatus(version)
 	}

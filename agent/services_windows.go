@@ -254,6 +254,41 @@ func WaitForService(name string, status string, retries int) {
 	}
 }
 
+// InstallRPCService installs the rpc service if this is an upgrade from agent < 1.1.0
+func (a *WindowsAgent) InstallRPCService() {
+	if serviceExists("tacticalrpc") {
+		return
+	}
+
+	svcCommands := [5][]string{
+		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
+		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
+		{"start", "tacticalrpc"},
+	}
+
+	for _, s := range svcCommands {
+		_, _ = CMD(a.Nssm, s, 25, false)
+	}
+}
+
+func serviceExists(name string) bool {
+	conn, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer conn.Disconnect()
+
+	srv, err := conn.OpenService(name)
+	if err != nil {
+		return false
+	}
+	defer srv.Close()
+
+	return true
+}
+
 // https://docs.microsoft.com/en-us/dotnet/api/system.serviceprocess.servicecontrollerstatus?view=dotnet-plat-ext-3.1
 func serviceStatusText(num uint32) string {
 	switch num {

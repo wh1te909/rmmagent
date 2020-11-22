@@ -37,6 +37,7 @@ type HelloPatch struct {
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
+	a.InstallRPCService()
 	a.CleanupPythonAgent()
 	var data map[string]interface{}
 	var sleep int

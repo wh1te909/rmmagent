@@ -647,7 +647,7 @@ func (a *WindowsAgent) UninstallCleanup() {
 // Otherwise prints to the console
 func ShowStatus(version string) {
 	statusMap := make(map[string]string)
-	svcs := []string{"tacticalagent", "checkrunner", "salt-minion", "mesh agent"}
+	svcs := []string{"tacticalagent", "checkrunner", "tacticalrpc", "salt-minion", "mesh agent"}
 
 	for _, service := range svcs {
 		status, err := GetServiceStatus(service)
@@ -665,8 +665,8 @@ func ShowStatus(version string) {
 			w32.ShowWindow(window, w32.SW_HIDE)
 		}
 		var handle w32.HWND
-		msg := fmt.Sprintf("Agent: %s\n\nCheck Runner: %s\n\nSalt Minion: %s\n\nMesh Agent: %s",
-			statusMap["tacticalagent"], statusMap["checkrunner"],
+		msg := fmt.Sprintf("Agent: %s\n\nCheck Runner: %s\n\nRPC Service: %s\n\nSalt Minion: %s\n\nMesh Agent: %s",
+			statusMap["tacticalagent"], statusMap["checkrunner"], statusMap["tacticalrpc"],
 			statusMap["salt-minion"], statusMap["mesh agent"],
 		)
 		w32.MessageBox(handle, msg, fmt.Sprintf("Tactical RMM v%s", version), w32.MB_OK|w32.MB_ICONINFORMATION)
@@ -674,6 +674,7 @@ func ShowStatus(version string) {
 		fmt.Println("Tactical RMM Version", version)
 		fmt.Println("Agent:", statusMap["tacticalagent"])
 		fmt.Println("Check Runner:", statusMap["checkrunner"])
+		fmt.Println("RPC Service:", statusMap["tacticalrpc"])
 		fmt.Println("Salt Minion:", statusMap["salt-minion"])
 		fmt.Println("Mesh Agent:", statusMap["mesh agent"])
 	}

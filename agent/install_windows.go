@@ -342,7 +342,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.CreateMeshWatchDogTask()
 
 	a.Logger.Infoln("Installing services...")
-	svcCommands := [8][]string{
+	svcCommands := [13][]string{
 		// winagentsvc
 		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
 		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
@@ -353,6 +353,12 @@ func (a *WindowsAgent) Install(i *Installer) {
 		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
 		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
 		{"start", "checkrunner"},
+		//rpc
+		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
+		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
+		{"start", "tacticalrpc"},
 	}
 
 	for _, s := range svcCommands {
