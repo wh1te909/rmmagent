@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"time"
@@ -31,7 +32,7 @@ func (a *WindowsAgent) RunRPC() {
 	}
 
 	nc.Subscribe(a.AgentID, func(msg *nats.Msg) {
-
+		a.Logger.SetOutput(os.Stdout)
 		var payload *NatsMsg
 		var mh codec.MsgpackHandle
 		mh.RawToString = true
@@ -57,6 +58,7 @@ func (a *WindowsAgent) RunRPC() {
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				days, _ := strconv.Atoi(p.Data["days"])
 				evtLog := a.GetEventLog(p.Data["logname"], days)
+				a.Logger.Debugln(evtLog)
 				ret.Encode(evtLog)
 				msg.Respond(resp)
 			}(payload)
@@ -66,6 +68,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				procs := a.GetProcsRPC()
+				a.Logger.Debugln(procs)
 				ret.Encode(procs)
 				msg.Respond(resp)
 			}()
@@ -90,6 +93,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				svcs := a.GetServices()
+				a.Logger.Debugln(svcs)
 				ret.Encode(svcs)
 				msg.Respond(resp)
 			}()
@@ -99,6 +103,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				svc := a.GetServiceDetail(p.Data["name"])
+				a.Logger.Debugln(svc)
 				ret.Encode(svc)
 				msg.Respond(resp)
 			}(payload)
@@ -108,6 +113,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				retData := a.ControlService(p.Data["name"], p.Data["action"])
+				a.Logger.Debugln(retData)
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)
@@ -117,6 +123,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				retData := a.EditService(p.Data["name"], p.Data["startType"])
+				a.Logger.Debugln(retData)
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)
@@ -127,9 +134,19 @@ func (a *WindowsAgent) RunRPC() {
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				out, err, _, _ := a.RunScript(p.Data["code"], p.Data["shell"], p.ScriptArgs, p.Timeout)
 				retData := out + err
+				a.Logger.Debugln(retData)
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)
+
+		case "recovermesh":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				a.RecoverMesh()
+				ret.Encode("ok")
+				msg.Respond(resp)
+			}()
 		}
 	})
 	nc.Flush()

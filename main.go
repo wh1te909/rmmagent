@@ -112,7 +112,7 @@ func main() {
 	}
 }
 
-func setupLogging(level *string, to *string) {
+func setupLogging(level, to *string) {
 	ll, err := logrus.ParseLevel(*level)
 	if err != nil {
 		ll = logrus.InfoLevel
