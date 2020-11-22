@@ -38,7 +38,7 @@ type LocalSaltUpdate struct {
 func (a *WindowsAgent) InstallPatches() {
 	data := WindowsUpdates{}
 
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       fmt.Sprintf("%s/api/v3/%s/winupdater/", a.Server, a.AgentID),
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -96,7 +96,7 @@ func (a *WindowsAgent) InstallPatches() {
 			}
 		}
 
-		r := &APIRequest{
+		r := APIRequest{
 			URL:       url,
 			Headers:   a.Headers,
 			Method:    "PATCH",

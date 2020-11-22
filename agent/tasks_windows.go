@@ -17,7 +17,7 @@ type AutomatedTask struct {
 func (a *WindowsAgent) RunTask(id int) error {
 	data := AutomatedTask{}
 	url := fmt.Sprintf("%s/api/v3/%d/%s/taskrunner/", a.Server, id, a.AgentID)
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -53,7 +53,7 @@ func (a *WindowsAgent) RunTask(id int) error {
 	}
 
 	r.Method = "PATCH"
-	r.Payload = &TaskResult{Stdout: stdout, Stderr: stderr, RetCode: retcode, ExecTime: time.Since(start).Seconds()}
+	r.Payload = TaskResult{Stdout: stdout, Stderr: stderr, RetCode: retcode, ExecTime: time.Since(start).Seconds()}
 
 	_, perr := r.MakeRequest()
 	if perr != nil {

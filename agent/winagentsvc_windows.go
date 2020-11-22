@@ -44,7 +44,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 
 	time.Sleep(20 * time.Second)
 	url := a.Server + "/api/v3/hello/"
-	req := &APIRequest{
+	req := APIRequest{
 		URL:       url,
 		Headers:   a.Headers,
 		Timeout:   15,

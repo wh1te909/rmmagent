@@ -1219,7 +1219,7 @@ func (a *WindowsAgent) GetWMI() {
 	url := a.Server + "/api/v3/sysinfo/"
 	payload := map[string]interface{}{"agent_id": a.AgentID, "sysinfo": wmiInfo}
 
-	req := &APIRequest{
+	req := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Payload:   payload,

@@ -513,7 +513,7 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 	}
 
 	url := fmt.Sprintf("%s/api/v3/%d/meshinfo/", a.Server, a.AgentPK)
-	req := &APIRequest{
+	req := APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -791,7 +791,7 @@ func (a *WindowsAgent) CleanupPythonAgent() {
 // UpdateSalt downloads the latest salt minion and performs an update
 func (a *WindowsAgent) UpdateSalt() {
 	url := fmt.Sprintf("%s/api/v3/%s/saltminion/", a.Server, a.AgentID)
-	req := &APIRequest{
+	req := APIRequest{
 		URL:       url,
 		Headers:   a.Headers,
 		Timeout:   15,

@@ -76,7 +76,7 @@ func (a *WindowsAgent) CheckRunner() {
 func (a *WindowsAgent) RunChecks() (int, error) {
 	data := AllChecks{}
 	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.Server, a.AgentID)
-	req := &APIRequest{
+	req := APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
@@ -266,7 +266,7 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 // ScriptCheck runs either bat, powershell or python script
 func (a *WindowsAgent) ScriptCheck(data Check) {
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -298,7 +298,7 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 // DiskCheck checks disk usage
 func (a *WindowsAgent) DiskCheck(data Check) {
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -343,7 +343,7 @@ func (a *WindowsAgent) CPULoadCheck(data Check) {
 	}
 
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -373,7 +373,7 @@ func (a *WindowsAgent) MemCheck(data Check) {
 	percent := (float64(mem.Used) / float64(mem.Total)) * 100
 
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -400,7 +400,7 @@ func (a *WindowsAgent) EventLogCheck(data Check) {
 	evtLog := a.GetEventLog(data.LogName, data.SearchLastDays)
 
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -454,7 +454,7 @@ func (a *WindowsAgent) PingCheck(data Check) {
 	}
 
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
@@ -477,13 +477,14 @@ func (a *WindowsAgent) PingCheck(data Check) {
 	}
 
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
+
 }
 
 func (a *WindowsAgent) WinSvcCheck(data Check) {
 	var status string
 	exists := true
 	url := a.Server + "/api/v3/checkrunner/"
-	r := &APIRequest{
+	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,

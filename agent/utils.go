@@ -16,8 +16,6 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-var client = resty.New()
-
 // APIRequest struct
 type APIRequest struct {
 	URL       string
@@ -31,6 +29,7 @@ type APIRequest struct {
 
 // MakeRequest creates an api request to the RMM
 func (r *APIRequest) MakeRequest() (*resty.Response, error) {
+	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetHeaders(r.Headers)
 	client.SetTimeout(r.Timeout * time.Second)
@@ -63,6 +62,7 @@ func (r *APIRequest) MakeRequest() (*resty.Response, error) {
 // PublicIP returns the agent's public ip
 // Tries 2 times before giving up
 func PublicIP() string {
+	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetTimeout(7 * time.Second)
 	urls := []string{"https://ifconfig.co/ip", "https://icanhazip.com"}
