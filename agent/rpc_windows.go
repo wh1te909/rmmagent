@@ -11,9 +11,10 @@ import (
 )
 
 type NatsMsg struct {
-	Func    string            `json:"func"`
-	Timeout int               `json:"timeout"`
-	Data    map[string]string `json:"payload"`
+	Func       string            `json:"func"`
+	Timeout    int               `json:"timeout"`
+	Data       map[string]string `json:"payload"`
+	ScriptArgs []string          `json:"script_args"`
 }
 
 func (a *WindowsAgent) RunRPC() {
@@ -54,9 +55,8 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				logName := p.Data["logname"]
 				days, _ := strconv.Atoi(p.Data["days"])
-				evtLog := a.GetEventLog(logName, days)
+				evtLog := a.GetEventLog(p.Data["logname"], days)
 				ret.Encode(evtLog)
 				msg.Respond(resp)
 			}(payload)
@@ -74,9 +74,7 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				command := p.Data["command"]
-				shell := p.Data["shell"]
-				out, _ := CMDShell(shell, []string{}, command, payload.Timeout, false)
+				out, _ := CMDShell(p.Data["shell"], []string{}, p.Data["command"], p.Timeout, false)
 
 				if out[1] != "" {
 					ret.Encode(out[1])
@@ -100,8 +98,7 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				svcName := p.Data["name"]
-				svc := a.GetServiceDetail(svcName)
+				svc := a.GetServiceDetail(p.Data["name"])
 				ret.Encode(svc)
 				msg.Respond(resp)
 			}(payload)
@@ -110,9 +107,7 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				svcName := p.Data["name"]
-				action := p.Data["action"]
-				retData := a.ControlService(svcName, action)
+				retData := a.ControlService(p.Data["name"], p.Data["action"])
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)
@@ -121,9 +116,17 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				svcName := p.Data["name"]
-				startType := p.Data["startType"]
-				retData := a.EditService(svcName, startType)
+				retData := a.EditService(p.Data["name"], p.Data["startType"])
+				ret.Encode(retData)
+				msg.Respond(resp)
+			}(payload)
+
+		case "runscript":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				out, err, _, _ := a.RunScript(p.Data["code"], p.Data["shell"], p.ScriptArgs, p.Timeout)
+				retData := out + err
 				ret.Encode(retData)
 				msg.Respond(resp)
 			}(payload)

@@ -233,7 +233,7 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 
 	if timedOut {
 		stdout = outb.String()
-		stderr = fmt.Sprintf("%s\nScript check timed out after %d seconds", errb.String(), timeout)
+		stderr = fmt.Sprintf("%s\nScript timed out after %d seconds", errb.String(), timeout)
 		exitcode = 98
 		a.Logger.Debugln("Script check timeout:", ctx.Err())
 	} else {
