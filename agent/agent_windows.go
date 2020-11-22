@@ -555,6 +555,14 @@ func (a *WindowsAgent) RecoverMesh() {
 	a.SyncMeshNodeID()
 }
 
+//RecoverRPC recovers nats rpc service
+func (a *WindowsAgent) RecoverRPC() {
+	a.Logger.Debugln("Attempting rpc recovery on", a.Hostname)
+	_, _ = CMD("net", []string{"stop", "tacticalrpc"}, 90, false)
+	time.Sleep(2 * time.Second)
+	_, _ = CMD("net", []string{"start", "tacticalrpc"}, 90, false)
+}
+
 //RecoverCMD runs a shell recovery command
 func (a *WindowsAgent) RecoverCMD(command string) {
 	a.Logger.Infoln("Attempting shell recovery with command:", command)

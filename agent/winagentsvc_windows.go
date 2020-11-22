@@ -113,6 +113,8 @@ func (a *WindowsAgent) WinAgentSvc() {
 							go a.RecoverSalt()
 						case "mesh":
 							go a.RecoverMesh()
+						case "rpc":
+							go a.RecoverRPC()
 						case "command":
 							if cmd, ok := data["cmd"].(string); ok {
 								a.RecoverCMD(cmd)
