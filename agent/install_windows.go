@@ -66,6 +66,21 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	a.Logger.Debugln("Salt Master:", i.SaltMaster)
 
+	terr := TestTCP(fmt.Sprintf("%s:4222", i.SaltMaster))
+	if terr != nil {
+		a.installerMsg(fmt.Sprintf("ERROR: Port 4222 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
+	}
+
+	terr = TestTCP(fmt.Sprintf("%s:4505", i.SaltMaster))
+	if terr != nil {
+		a.installerMsg(fmt.Sprintf("ERROR: Port 4505 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
+	}
+
+	terr = TestTCP(fmt.Sprintf("%s:4506", i.SaltMaster))
+	if terr != nil {
+		a.installerMsg(fmt.Sprintf("ERROR: Port 4506 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
+	}
+
 	baseURL := u.Scheme + "://" + u.Host
 	a.Logger.Debugln("Base URL:", baseURL)
 

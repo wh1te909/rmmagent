@@ -165,3 +165,12 @@ func KillProc(pid int32) error {
 func DjangoStringResp(resp string) string {
 	return strings.Trim(resp, `"`)
 }
+
+func TestTCP(addr string) error {
+	conn, err := net.Dial("tcp4", addr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return nil
+}
