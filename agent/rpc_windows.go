@@ -163,6 +163,24 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}()
 
+		case "softwarelist":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				sw := a.GetInstalledSoftware()
+				ret.Encode(sw)
+				msg.Respond(resp)
+			}()
+
+		case "rebootnow":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode("ok")
+				msg.Respond(resp)
+				_, _ = CMD("shutdown.exe", []string{"/r", "/t", "5", "/f"}, 15, false)
+			}()
+
 		case "uninstall":
 			go func() {
 				var resp []byte
