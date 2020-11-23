@@ -58,6 +58,8 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// if ipv4:port, strip the port to get ip for salt master
 	if ipPort.MatchString(u.Host) && strings.Contains(u.Host, ":") {
 		i.SaltMaster = strings.Split(u.Host, ":")[0]
+	} else if strings.Contains(u.Host, ":") {
+		i.SaltMaster = strings.Split(u.Host, ":")[0]
 	} else {
 		i.SaltMaster = u.Host
 	}
@@ -342,23 +344,33 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.CreateMeshWatchDogTask()
 
 	a.Logger.Infoln("Installing services...")
-	svcCommands := [13][]string{
-		// winagentsvc
-		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
-		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
-		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
-		{"start", "tacticalagent"},
-		//checkrunner
-		{"install", "checkrunner", a.EXE, "-m", "checkrunner"},
-		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
-		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
-		{"start", "checkrunner"},
-		//rpc
+
+	rpcCommands := [5][]string{
 		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
 		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
 		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
 		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
 		{"start", "tacticalrpc"},
+	}
+	for _, s := range rpcCommands {
+		a.Logger.Debugln(a.Nssm, s)
+		_, _ = CMD(a.Nssm, s, 25, false)
+	}
+	time.Sleep(3 * time.Second)
+
+	svcCommands := [10][]string{
+		// winagentsvc
+		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
+		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
+		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
+		{"set", "tacticalagent", "AppRestartDelay", "5000"},
+		{"start", "tacticalagent"},
+		//checkrunner
+		{"install", "checkrunner", a.EXE, "-m", "checkrunner"},
+		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
+		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
+		{"set", "checkrunner", "AppRestartDelay", "5000"},
+		{"start", "checkrunner"},
 	}
 
 	for _, s := range svcCommands {
