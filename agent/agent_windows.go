@@ -742,6 +742,16 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	cmd.Start()
 }
 
+func (a *WindowsAgent) AgentUninstall() {
+	tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
+	args := []string{"/C", tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES"}
+	cmd := exec.Command("cmd.exe", args...)
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+	}
+	cmd.Start()
+}
+
 // CleanupPythonAgent cleans up files from the old python agent if this is an upgrade
 func (a *WindowsAgent) CleanupPythonAgent() {
 	cderr := os.Chdir(a.ProgramDir)

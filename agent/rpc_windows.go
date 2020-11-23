@@ -147,6 +147,19 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode("ok")
 				msg.Respond(resp)
 			}()
+
+		case "uninstall":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode("ok")
+				msg.Respond(resp)
+				a.AgentUninstall()
+
+			}()
+			nc.Flush()
+			nc.Close()
+			os.Exit(0)
 		}
 	})
 	nc.Flush()
