@@ -16,6 +16,7 @@ type NatsMsg struct {
 	Timeout    int               `json:"timeout"`
 	Data       map[string]string `json:"payload"`
 	ScriptArgs []string          `json:"script_args"`
+	ProcPID    int32             `json:"procpid"`
 }
 
 func (a *WindowsAgent) RunRPC() {
@@ -72,6 +73,20 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode(procs)
 				msg.Respond(resp)
 			}()
+
+		case "killproc":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				err := KillProc(p.ProcPID)
+				if err != nil {
+					ret.Encode(err.Error())
+					a.Logger.Debugln(err.Error())
+				} else {
+					ret.Encode("ok")
+				}
+				msg.Respond(resp)
+			}(payload)
 
 		case "rawcmd":
 			go func(p *NatsMsg) {
