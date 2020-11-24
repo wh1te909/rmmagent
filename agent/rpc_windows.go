@@ -181,6 +181,16 @@ func (a *WindowsAgent) RunRPC() {
 				_, _ = CMD("shutdown.exe", []string{"/r", "/t", "5", "/f"}, 15, false)
 			}()
 
+		case "sysinfo":
+			go func() {
+				a.GetWMI()
+			}()
+
+		case "runchecks":
+			go func() {
+				a.RunChecks()
+			}()
+
 		case "uninstall":
 			go func() {
 				var resp []byte
