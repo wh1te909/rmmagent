@@ -17,6 +17,7 @@ type NatsMsg struct {
 	Data       map[string]string `json:"payload"`
 	ScriptArgs []string          `json:"script_args"`
 	ProcPID    int32             `json:"procpid"`
+	TaskPK     int               `json:"taskpk"`
 }
 
 func (a *WindowsAgent) RunRPC() {
@@ -190,6 +191,11 @@ func (a *WindowsAgent) RunRPC() {
 			go func() {
 				a.RunChecks()
 			}()
+
+		case "runtask":
+			go func(p *NatsMsg) {
+				a.RunTask(p.TaskPK)
+			}(payload)
 
 		case "uninstall":
 			go func() {
