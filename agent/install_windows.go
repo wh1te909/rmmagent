@@ -144,7 +144,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 			a.installerMsg(fmt.Sprintf("Unable to download the mesh agent from the RMM. %s", r.String()), "error")
 		}
 	} else {
-		err := copyFile(i.LocalSalt, saltMin)
+		err := copyFile(i.LocalMesh, mesh)
 		if err != nil {
 			a.installerMsg(err.Error(), "error")
 		}
