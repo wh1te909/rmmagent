@@ -50,6 +50,7 @@ func (a *WindowsAgent) RunRPC() {
 			go func() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				a.Logger.Debugln("pong")
 				ret.Encode("pong")
 				msg.Respond(resp)
 			}()
@@ -94,7 +95,7 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				out, _ := CMDShell(p.Data["shell"], []string{}, p.Data["command"], p.Timeout, false)
-
+				a.Logger.Debugln(out)
 				if out[1] != "" {
 					ret.Encode(out[1])
 				} else {
@@ -155,26 +156,43 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}(payload)
 
-		case "recovermesh":
-			go func() {
+		case "recover":
+			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				a.RecoverMesh()
+
+				switch p.Data["mode"] {
+				case "mesh":
+					a.Logger.Debugln("Recovering mesh")
+					a.RecoverMesh()
+				case "salt":
+					a.Logger.Debugln("Recovering salt")
+					a.RecoverSalt()
+				case "tacagent":
+					a.Logger.Debugln("Recovering tactical agent")
+					a.RecoverTacticalAgent()
+				case "checkrunner":
+					a.Logger.Debugln("Recovering checkrunner")
+					a.RecoverCheckRunner()
+				}
+
 				ret.Encode("ok")
 				msg.Respond(resp)
-			}()
+			}(payload)
 
 		case "softwarelist":
 			go func() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				sw := a.GetInstalledSoftware()
+				a.Logger.Debugln(sw)
 				ret.Encode(sw)
 				msg.Respond(resp)
 			}()
 
 		case "rebootnow":
 			go func() {
+				a.Logger.Debugln("Scheduling immediate reboot")
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				ret.Encode("ok")
@@ -184,17 +202,25 @@ func (a *WindowsAgent) RunRPC() {
 
 		case "sysinfo":
 			go func() {
+				a.Logger.Debugln("Getting sysinfo with WMI")
 				a.GetWMI()
 			}()
 
 		case "runchecks":
 			go func() {
+				a.Logger.Debugln("Running checks")
 				a.RunChecks()
 			}()
 
 		case "runtask":
 			go func(p *NatsMsg) {
+				a.Logger.Debugln("Running task")
 				a.RunTask(p.TaskPK)
+			}(payload)
+
+		case "agentupdate":
+			go func(p *NatsMsg) {
+				a.AgentUpdate(p.Data["url"], p.Data["inno"], p.Data["version"])
 			}(payload)
 
 		case "uninstall":
@@ -204,11 +230,10 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode("ok")
 				msg.Respond(resp)
 				a.AgentUninstall()
-
+				nc.Flush()
+				nc.Close()
+				os.Exit(0)
 			}()
-			nc.Flush()
-			nc.Close()
-			os.Exit(0)
 		}
 	})
 	nc.Flush()

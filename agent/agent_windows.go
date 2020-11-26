@@ -460,6 +460,28 @@ func (a *WindowsAgent) ForceKillMesh() {
 	}
 }
 
+// RecoverTacticalAgent should only be called from the rpc service
+func (a *WindowsAgent) RecoverTacticalAgent() {
+	svc := "tacticalagent"
+	a.Logger.Debugln("Attempting tacticalagent recovery on", a.Hostname)
+	defer CMD(a.Nssm, []string{"start", svc}, 60, false)
+
+	_, _ = CMD(a.Nssm, []string{"stop", svc}, 120, false)
+	_, _ = CMD("ipconfig", []string{"/flushdns"}, 15, false)
+	a.Logger.Debugln("Tacticalagent recovery completed on", a.Hostname)
+}
+
+// RecoverCheckRunner should only be called from the rpc service
+func (a *WindowsAgent) RecoverCheckRunner() {
+	svc := "checkrunner"
+	a.Logger.Debugln("Attempting checkrunner recovery on", a.Hostname)
+	defer CMD(a.Nssm, []string{"start", svc}, 60, false)
+
+	_, _ = CMD(a.Nssm, []string{"stop", svc}, 120, false)
+	_, _ = CMD("ipconfig", []string{"/flushdns"}, 15, false)
+	a.Logger.Debugln("Checkrunner recovery completed on", a.Hostname)
+}
+
 //RecoverSalt recovers the salt minion
 func (a *WindowsAgent) RecoverSalt() {
 	saltSVC := "salt-minion"
@@ -475,7 +497,7 @@ func (a *WindowsAgent) RecoverSalt() {
 	if err != nil {
 		a.Logger.Debugln(err)
 	}
-	_, _ = CMD("ipconfig", []string{"flushdns"}, 15, false)
+	_, _ = CMD("ipconfig", []string{"/flushdns"}, 15, false)
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
