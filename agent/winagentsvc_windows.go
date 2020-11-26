@@ -42,6 +42,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	var data map[string]interface{}
 	var sleep int
 
+	a.Logger.Debugln("Sleeping for 20 seconds")
 	time.Sleep(20 * time.Second)
 	url := a.Server + "/api/v3/hello/"
 	req := APIRequest{
