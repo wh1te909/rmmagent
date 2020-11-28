@@ -522,10 +522,10 @@ func (a *WindowsAgent) handleAssignedTasks(status string, tasks []AssignedTask) 
 		for _, t := range tasks {
 			if t.Enabled {
 				wg.Add(1)
-				go func(pk int) {
+				go func(pk int, wg *sync.WaitGroup) {
 					defer wg.Done()
 					a.RunTask(pk)
-				}(t.TaskPK)
+				}(t.TaskPK, &wg)
 			}
 		}
 		wg.Wait()
