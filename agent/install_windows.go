@@ -356,7 +356,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	// create mesh watchdog
 	a.Logger.Debugln("Creating mesh watchdog scheduled task")
-	a.CreateMeshWatchDogTask()
+	a.CreateInternalTask("TacticalRMM_fixmesh", "-m fixmesh", "60", 10)
 
 	a.Logger.Infoln("Installing services...")
 

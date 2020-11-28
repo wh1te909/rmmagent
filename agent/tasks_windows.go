@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/capnspacehook/taskmaster"
 )
 
 type AutomatedTask struct {
@@ -61,4 +63,62 @@ func (a *WindowsAgent) RunTask(id int) error {
 		return perr
 	}
 	return nil
+}
+
+// CreateInternalTask creates predefined tacticalrmm internal tasks
+func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) (bool, error) {
+	conn, err := taskmaster.Connect()
+	if err != nil {
+		return false, err
+	}
+	defer conn.Disconnect()
+
+	def := conn.NewTaskDefinition()
+
+	dailyTrigger := taskmaster.DailyTrigger{
+		TaskTrigger: taskmaster.TaskTrigger{
+			Enabled:       true,
+			StartBoundary: time.Now().Add(time.Duration(start) * time.Minute),
+		},
+		DayInterval: taskmaster.EveryDay,
+	}
+
+	def.AddTrigger(dailyTrigger)
+
+	action := taskmaster.ExecAction{
+		Path:       a.EXE,
+		WorkingDir: a.ProgramDir,
+		Args:       args,
+	}
+	def.AddAction(action)
+
+	def.Principal.RunLevel = taskmaster.TASK_RUNLEVEL_HIGHEST
+	def.Principal.LogonType = taskmaster.TASK_LOGON_SERVICE_ACCOUNT
+	def.Principal.UserID = "SYSTEM"
+	def.Settings.AllowDemandStart = true
+	def.Settings.AllowHardTerminate = true
+	def.Settings.DontStartOnBatteries = false
+	def.Settings.Enabled = true
+	def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_PARALLEL
+	def.Settings.StopIfGoingOnBatteries = false
+	def.Settings.WakeToRun = true
+
+	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", name), def, true)
+	if err != nil {
+		return false, err
+	}
+
+	if success {
+		// https://github.com/capnspacehook/taskmaster/issues/15
+		out, err := CMD("schtasks", []string{"/Change", "/TN", name, "/RI", repeat}, 10, false)
+		if err != nil {
+			return false, err
+		}
+		if out[1] != "" {
+			a.Logger.Errorln(out[1])
+			return false, nil
+		}
+		return success, nil
+	}
+	return false, nil
 }

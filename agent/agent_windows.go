@@ -624,29 +624,6 @@ func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int
 	return outb.Bytes(), nil
 }
 
-func (a *WindowsAgent) CreateMeshWatchDogTask() {
-	t := time.Now().Local().Add(5 * time.Minute)
-	f := fmt.Sprintf("%02d:%02d", t.Hour(), t.Minute())
-
-	args := []string{
-		"name=TacticalRMM_fixmesh",
-		"force=True",
-		"action_type=Execute",
-		fmt.Sprintf(`cmd="%s"`, a.EXE),
-		`arguments='-m fixmesh'`,
-		"trigger_type=Daily",
-		fmt.Sprintf(`start_time='%s'`, f),
-		`repeat_interval='1 hour'`,
-		"ac_only=False",
-		"stop_if_on_batteries=False",
-	}
-
-	_, err := a.LocalSaltCall("task.create_task", args, 60)
-	if err != nil {
-		a.Logger.Debugln(err)
-	}
-}
-
 func (a *WindowsAgent) UninstallCleanup() {
 	out, err := a.LocalSaltCall("task.list_tasks", []string{}, 45)
 	if err != nil {
