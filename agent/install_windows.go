@@ -166,8 +166,8 @@ func (a *WindowsAgent) Install(i *Installer) {
 	meshSuccess := false
 	var meshNodeID string
 	for !meshSuccess {
-		a.Logger.Debugln("Getting mesh node id hex")
-		pMesh, pErr := CMD(mesh, []string{"-nodeidhex"}, int(30), false)
+		a.Logger.Debugln("Getting mesh node id")
+		pMesh, pErr := CMD(a.MeshSystemEXE, []string{"-nodeid"}, int(30), false)
 		if pErr != nil {
 			a.Logger.Errorln(pErr)
 			time.Sleep(5 * time.Second)
@@ -179,7 +179,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 			continue
 		}
 		meshNodeID = StripAll(pMesh[0])
-		a.Logger.Debugln("Node id hex:", meshNodeID)
+		a.Logger.Debugln("Node id:", meshNodeID)
 		if strings.Contains(strings.ToLower(meshNodeID), "not defined") {
 			a.Logger.Errorln(meshNodeID)
 			time.Sleep(5 * time.Second)

@@ -43,6 +43,7 @@ type WindowsAgent struct {
 	SaltMinion    string
 	SaltInstaller string
 	MeshInstaller string
+	MeshSystemEXE string
 	MeshSVC       string
 	PyBin         string
 	Headers       map[string]string
@@ -94,6 +95,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		SaltMinion:    saltexe,
 		SaltInstaller: saltinstaller,
 		MeshInstaller: mesh,
+		MeshSystemEXE: filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe"),
 		MeshSVC:       "mesh agent",
 		PyBin:         pybin,
 		Headers:       headers,
@@ -501,21 +503,8 @@ func (a *WindowsAgent) RecoverSalt() {
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
-func (a *WindowsAgent) getMeshEXE() (meshexe string) {
-	mesh1 := filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe")
-	mesh2 := filepath.Join(a.ProgramDir, a.MeshInstaller)
-	if FileExists(mesh1) {
-		meshexe = mesh1
-	} else {
-		meshexe = mesh2
-	}
-	return meshexe
-}
-
 func (a *WindowsAgent) SyncMeshNodeID() {
-	meshexe := a.getMeshEXE()
-
-	out, err := CMD(meshexe, []string{"-nodeidhex"}, 10, false)
+	out, err := CMD(a.MeshSystemEXE, []string{"-nodeid"}, 10, false)
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -530,7 +519,7 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 	}
 
 	if stdout == "" || strings.Contains(strings.ToLower(StripAll(stdout)), "not defined") {
-		a.Logger.Debugln("Failed to get node id hex", stdout)
+		a.Logger.Debugln("Failed getting mesh node id", stdout)
 		return
 	}
 
@@ -556,8 +545,8 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 
 	if resp.StatusCode() == 200 && StripAll(stdout) != DjangoStringResp(resp.String()) {
 		payload := struct {
-			NodeIDHex string `json:"nodeidhex"`
-		}{NodeIDHex: StripAll(stdout)}
+			NodeID string `json:"nodeid"`
+		}{NodeID: StripAll(stdout)}
 
 		req.Method = "PATCH"
 		req.Payload = payload
