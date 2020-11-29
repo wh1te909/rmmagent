@@ -12,12 +12,13 @@ import (
 )
 
 type NatsMsg struct {
-	Func       string            `json:"func"`
-	Timeout    int               `json:"timeout"`
-	Data       map[string]string `json:"payload"`
-	ScriptArgs []string          `json:"script_args"`
-	ProcPID    int32             `json:"procpid"`
-	TaskPK     int               `json:"taskpk"`
+	Func          string            `json:"func"`
+	Timeout       int               `json:"timeout"`
+	Data          map[string]string `json:"payload"`
+	ScriptArgs    []string          `json:"script_args"`
+	ProcPID       int32             `json:"procpid"`
+	TaskPK        int               `json:"taskpk"`
+	ScheduledTask SchedTask         `json:"schedtaskpayload"`
 }
 
 func (a *WindowsAgent) RunRPC() {
@@ -55,6 +56,36 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode("pong")
 				msg.Respond(resp)
 			}()
+
+		case "schedtask":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				success, err := a.CreateSchedTask(p.ScheduledTask)
+				if err != nil {
+					a.Logger.Errorln(err.Error())
+					ret.Encode(err.Error())
+				} else if !success {
+					ret.Encode("Something went wrong")
+				} else {
+					ret.Encode("ok")
+				}
+				msg.Respond(resp)
+			}(payload)
+
+		case "delschedtask":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				err := DeleteSchedTask(p.ScheduledTask.Name)
+				if err != nil {
+					a.Logger.Errorln(err.Error())
+					ret.Encode(err.Error())
+				} else {
+					ret.Encode("ok")
+				}
+				msg.Respond(resp)
+			}(payload)
 
 		case "eventlog":
 			go func(p *NatsMsg) {
