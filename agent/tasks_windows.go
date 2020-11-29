@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/capnspacehook/taskmaster"
@@ -121,4 +122,25 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 		return success, nil
 	}
 	return false, nil
+}
+
+// CleanupSchedTasks removes all tacticalrmm sched tasks during uninstall
+func CleanupSchedTasks() {
+	conn, err := taskmaster.Connect()
+	if err != nil {
+		return
+	}
+	defer conn.Disconnect()
+
+	tasks, err := conn.GetRegisteredTasks()
+	if err != nil {
+		return
+	}
+
+	for _, task := range tasks {
+		if strings.HasPrefix(task.Name, "TacticalRMM_") {
+			defer task.Release()
+			conn.DeleteTask(fmt.Sprintf("\\%s", task.Name))
+		}
+	}
 }

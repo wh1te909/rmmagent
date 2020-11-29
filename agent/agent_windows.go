@@ -625,28 +625,7 @@ func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int
 }
 
 func (a *WindowsAgent) UninstallCleanup() {
-	out, err := a.LocalSaltCall("task.list_tasks", []string{}, 45)
-	if err != nil {
-		return
-	}
-
-	type LocalSaltTasks struct {
-		Local []string `json:"local"`
-	}
-
-	data := LocalSaltTasks{}
-	if err := json.Unmarshal(out, &data); err != nil {
-		return
-	}
-
-	for _, task := range data.Local {
-		if strings.HasPrefix(task, "TacticalRMM_") {
-			_, err := a.LocalSaltCall("task.delete_task", []string{task}, 45)
-			if err != nil {
-				continue
-			}
-		}
-	}
+	CleanupSchedTasks()
 }
 
 // ShowStatus prints windows service status
