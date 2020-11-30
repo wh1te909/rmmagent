@@ -131,13 +131,13 @@ type SchedTask struct {
 	Type     string               `json:"type"`
 	Name     string               `json:"name"`
 	Trigger  string               `json:"trigger"`
+	Enabled  bool                 `json:"enabled"`
 	WeekDays taskmaster.DayOfWeek `json:"weekdays"`
 	Year     int                  `json:"year"`
 	Month    string               `json:"month"`
 	Day      int                  `json:"day"`
 	Hour     int                  `json:"hour"`
 	Minute   int                  `json:"min"`
-	TZ       string               `json:"tz"`
 }
 
 func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
@@ -154,24 +154,19 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 	def := conn.NewTaskDefinition()
 
 	now := time.Now()
-	location, err := time.LoadLocation(st.TZ)
-	if err != nil {
-		location = now.Location()
-	}
-
 	switch st.Trigger {
 	case "once":
 		trigger = taskmaster.TimeTrigger{
 			TaskTrigger: taskmaster.TaskTrigger{
 				Enabled:       true,
-				StartBoundary: time.Date(st.Year, getMonth(st.Month), st.Day, st.Hour, st.Minute, 0, 0, location),
+				StartBoundary: time.Date(st.Year, getMonth(st.Month), st.Day, st.Hour, st.Minute, 0, 0, now.Location()),
 			},
 		}
 	case "weekly":
 		trigger = taskmaster.WeeklyTrigger{
 			TaskTrigger: taskmaster.TaskTrigger{
 				Enabled:       true,
-				StartBoundary: time.Date(now.Year(), now.Month(), now.Day(), st.Hour, st.Minute, 0, 0, location),
+				StartBoundary: time.Date(now.Year(), now.Month(), now.Day(), st.Hour, st.Minute, 0, 0, now.Location()),
 			},
 			DaysOfWeek:   st.WeekDays,
 			WeekInterval: taskmaster.EveryWeek,
@@ -180,7 +175,7 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		trigger = taskmaster.TimeTrigger{
 			TaskTrigger: taskmaster.TaskTrigger{
 				Enabled:       true,
-				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, location),
+				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
 			},
 		}
 	}
@@ -239,6 +234,29 @@ func DeleteSchedTask(name string) error {
 	return nil
 }
 
+func EnableSchedTask(st SchedTask) error {
+	conn, err := taskmaster.Connect()
+	if err != nil {
+		return err
+	}
+	defer conn.Disconnect()
+
+	task, err := conn.GetRegisteredTask(fmt.Sprintf("\\%s", st.Name))
+	if err != nil {
+		return err
+	}
+	defer task.Release()
+
+	def := task.Definition
+	def.Settings.Enabled = st.Enabled
+
+	_, err = conn.UpdateTask(task.Path, def)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // CleanupSchedTasks removes all tacticalrmm sched tasks during uninstall
 func CleanupSchedTasks() {
 	conn, err := taskmaster.Connect()
@@ -253,11 +271,32 @@ func CleanupSchedTasks() {
 	}
 
 	for _, task := range tasks {
+		defer task.Release()
 		if strings.HasPrefix(task.Name, "TacticalRMM_") {
-			defer task.Release()
 			conn.DeleteTask(fmt.Sprintf("\\%s", task.Name))
 		}
 	}
+}
+
+func ListSchedTasks() []string {
+	ret := make([]string, 0)
+
+	conn, err := taskmaster.Connect()
+	if err != nil {
+		return ret
+	}
+	defer conn.Disconnect()
+
+	tasks, err := conn.GetRegisteredTasks()
+	if err != nil {
+		return ret
+	}
+
+	for _, task := range tasks {
+		defer task.Release()
+		ret = append(ret, task.Name)
+	}
+	return ret
 }
 
 func getMonth(month string) time.Month {

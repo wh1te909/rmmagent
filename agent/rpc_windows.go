@@ -87,6 +87,30 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}(payload)
 
+		case "enableschedtask":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				err := EnableSchedTask(p.ScheduledTask)
+				if err != nil {
+					a.Logger.Errorln(err.Error())
+					ret.Encode(err.Error())
+				} else {
+					ret.Encode("ok")
+				}
+				msg.Respond(resp)
+			}(payload)
+
+		case "listschedtasks":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				tasks := ListSchedTasks()
+				a.Logger.Debugln(tasks)
+				ret.Encode(tasks)
+				msg.Respond(resp)
+			}()
+
 		case "eventlog":
 			go func(p *NatsMsg) {
 				var resp []byte
