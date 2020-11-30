@@ -262,7 +262,10 @@ func CMDShell(shell string, cmdArgs []string, command string, timeout int, detac
 	} else {
 		switch shell {
 		case "cmd":
-			cmd = exec.Command("cmd.exe", "/C", command)
+			cmd = exec.Command("cmd.exe")
+			cmd.SysProcAttr = &windows.SysProcAttr{
+				CmdLine: fmt.Sprintf("cmd.exe /C %s", command),
+			}
 		case "powershell":
 			cmd = exec.Command("Powershell", "-NonInteractive", "-NoProfile", command)
 		}
