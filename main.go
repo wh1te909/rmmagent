@@ -67,6 +67,8 @@ func main() {
 		a.RunChecks()
 	case "sysinfo":
 		a.GetWMI()
+	case "software":
+		a.SendSoftware()
 	case "sync":
 		a.Sync()
 	case "recoversalt":
