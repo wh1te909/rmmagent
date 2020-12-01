@@ -616,6 +616,35 @@ func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int
 	return outb.Bytes(), nil
 }
 
+func (a *WindowsAgent) Sync() {
+	a.GetWMI()
+	time.Sleep(1 * time.Second)
+	a.SendSoftware()
+}
+
+func (a *WindowsAgent) SendSoftware() {
+	sw := a.GetInstalledSoftware()
+	a.Logger.Debugln(sw)
+
+	url := a.Server + "/api/v3/software/"
+	payload := map[string]interface{}{"agent_id": a.AgentID, "software": sw}
+
+	req := APIRequest{
+		URL:       url,
+		Method:    "POST",
+		Payload:   payload,
+		Headers:   a.Headers,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
+	}
+
+	_, err := req.MakeRequest()
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
+}
+
 func (a *WindowsAgent) UninstallCleanup() {
 	CleanupSchedTasks()
 }

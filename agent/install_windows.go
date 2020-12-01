@@ -358,6 +358,10 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Creating mesh watchdog scheduled task")
 	a.CreateInternalTask("TacticalRMM_fixmesh", "-m fixmesh", "60", 10)
 
+	// sync stuff every 15 min
+	a.Logger.Debugln("Creating sync task")
+	a.CreateInternalTask("TacticalRMM_sync", "-m sync", "15", 6)
+
 	a.Logger.Infoln("Installing services...")
 
 	rpcCommands := [5][]string{
