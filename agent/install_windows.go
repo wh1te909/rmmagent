@@ -354,6 +354,10 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Getting sysinfo with WMI")
 	a.GetWMI()
 
+	// send software list
+	a.Logger.Debugln("Getting software list")
+	a.SendSoftware()
+
 	// create mesh watchdog
 	a.Logger.Debugln("Creating mesh watchdog scheduled task")
 	a.CreateInternalTask("TacticalRMM_fixmesh", "-m fixmesh", "60", 10)
