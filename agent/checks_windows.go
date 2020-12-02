@@ -92,6 +92,11 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 		return 120, err
 	}
 
+	if r.IsError() {
+		a.Logger.Debugln("Checkrunner response code:", r.StatusCode())
+		return 120, nil
+	}
+
 	if err := json.Unmarshal(r.Body(), &data); err != nil {
 		a.Logger.Debugln(err)
 		return 120, err
