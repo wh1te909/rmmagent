@@ -26,11 +26,11 @@ type Installer struct {
 	RDP         bool
 	Ping        bool
 	Token       string
-	LocalSalt   string
 	LocalMesh   string
 	Cert        string
 	Timeout     time.Duration
 	SaltMaster  string
+	NoSalt      bool
 }
 
 func (a *WindowsAgent) Install(i *Installer) {
@@ -68,17 +68,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	terr := TestTCP(fmt.Sprintf("%s:4222", i.SaltMaster))
 	if terr != nil {
-		a.installerMsg(fmt.Sprintf("ERROR: Port 4222 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
-	}
-
-	terr = TestTCP(fmt.Sprintf("%s:4505", i.SaltMaster))
-	if terr != nil {
-		a.installerMsg(fmt.Sprintf("ERROR: Port 4505 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
-	}
-
-	terr = TestTCP(fmt.Sprintf("%s:4506", i.SaltMaster))
-	if terr != nil {
-		a.installerMsg(fmt.Sprintf("ERROR: Port 4506 TCP is not open on your RMM\n\n%s", terr.Error()), "error")
+		a.installerMsg(fmt.Sprintf("ERROR: Either port 4222 TCP is not open on your RMM, or nats.service is not running.\n\n%s", terr.Error()), "error")
 	}
 
 	baseURL := u.Scheme + "://" + u.Host
@@ -87,31 +77,32 @@ func (a *WindowsAgent) Install(i *Installer) {
 	minion := filepath.Join(a.ProgramDir, a.SaltInstaller)
 	a.Logger.Debugln("Salt Minion:", minion)
 
+	iClient := resty.New()
+	iClient.SetCloseConnection(true)
+	iClient.SetTimeout(15 * time.Second)
+	iClient.SetDebug(a.Debug)
+	iClient.SetHeaders(i.Headers)
+	creds, cerr := iClient.R().Get(fmt.Sprintf("%s/api/v3/installer/", baseURL))
+	if cerr != nil {
+		a.installerMsg(err.Error(), "error")
+	}
+	if creds.StatusCode() == 401 {
+		a.installerMsg("Installer token has expired. Please generate a new one.", "error")
+	}
+
+	verPayload := map[string]string{"version": a.Version}
+	iVersion, ierr := iClient.R().SetBody(verPayload).Post(fmt.Sprintf("%s/api/v3/installer/", baseURL))
+	if ierr != nil {
+		a.installerMsg(err.Error(), "error")
+	}
+	if iVersion.StatusCode() != 200 {
+		a.installerMsg(DjangoStringResp(iVersion.String()), "error")
+	}
+
 	rClient := resty.New()
 	rClient.SetCloseConnection(true)
 	rClient.SetTimeout(i.Timeout * time.Second)
 	rClient.SetDebug(a.Debug)
-
-	// download or copy the salt-minion-setup.exe
-	saltMin := filepath.Join(a.ProgramDir, a.SaltInstaller)
-	if i.LocalSalt == "" {
-		a.Logger.Infoln("Downloading salt minion...")
-		a.Logger.Debugln("Downloading from:", a.SaltMinion)
-		r, err := rClient.R().SetOutput(saltMin).Get(a.SaltMinion)
-		if err != nil {
-			a.installerMsg(fmt.Sprintf("Unable to download salt minion: %s", err.Error()), "error")
-		}
-		if r.StatusCode() != 200 {
-			a.installerMsg(fmt.Sprintf("Unable to download salt minion from %s", a.SaltMinion), "error")
-		}
-
-	} else {
-		err := copyFile(i.LocalSalt, saltMin)
-		if err != nil {
-			a.installerMsg(err.Error(), "error")
-		}
-	}
-
 	// set rest knox headers
 	rClient.SetHeaders(i.Headers)
 
@@ -263,92 +254,8 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// refresh our agent with new values
 	a = New(a.Logger, a.Version)
 
-	// install salt
-	a.Logger.Debugln("changing dir to", a.ProgramDir)
-	cdErr := os.Chdir(a.ProgramDir)
-	if cdErr != nil {
-		a.installerMsg(cdErr.Error(), "error")
-	}
-
-	a.Logger.Infoln("Installing the salt-minion, this might take a while...")
-	saltInstallArgs := []string{
-		"/S",
-		"/custom-config=saltcustom",
-		fmt.Sprintf("/master=%s", i.SaltMaster),
-		fmt.Sprintf("/minion-name=%s", saltID),
-		"/start-minion=1",
-	}
-
-	a.Logger.Debugln("Installing salt with:", a.SaltInstaller, saltInstallArgs)
-	_, saltErr := CMD(a.SaltInstaller, saltInstallArgs, int(i.Timeout), false)
-	if saltErr != nil {
-		a.installerMsg(fmt.Sprintf("Unable to install salt: %s", saltErr.Error()), "error")
-	}
-
-	time.Sleep(10 * time.Second)
-
 	// set new headers, no longer knox auth...use agent auth
 	rClient.SetHeaders(a.Headers)
-
-	// accept the salt key on the rmm
-	a.Logger.Debugln("Registering salt with the RMM")
-	acceptPayload := map[string]string{"saltid": saltID, "agent_id": a.AgentID}
-	acceptAttempts := 0
-	acceptRetries := 20
-	for {
-		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v3/saltminion/", baseURL))
-		if err != nil {
-			a.Logger.Debugln(err)
-			acceptAttempts++
-			time.Sleep(5 * time.Second)
-		}
-
-		if r.StatusCode() != 200 {
-			a.Logger.Debugln(r.String())
-			acceptAttempts++
-			time.Sleep(5 * time.Second)
-		} else {
-			acceptAttempts = 0
-		}
-
-		if acceptAttempts == 0 {
-			a.Logger.Debugln(r.String())
-			break
-		} else if acceptAttempts >= acceptRetries {
-			a.installerMsg("Unable to register salt with the RMM\nInstallation failed.", "error")
-		}
-	}
-
-	time.Sleep(10 * time.Second)
-
-	// sync salt modules
-	a.Logger.Debugln("Syncing salt modules")
-	syncPayload := map[string]string{"agent_id": a.AgentID}
-	syncAttempts := 0
-	syncRetries := 20
-	for {
-		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v3/saltminion/", baseURL))
-		if err != nil {
-			a.Logger.Debugln(err)
-			syncAttempts++
-			time.Sleep(5 * time.Second)
-		}
-
-		if r.StatusCode() != 200 {
-			a.Logger.Debugln(r.String())
-			syncAttempts++
-			time.Sleep(5 * time.Second)
-		} else {
-			syncAttempts = 0
-		}
-
-		if syncAttempts == 0 {
-			a.Logger.Debugln(r.String())
-			break
-		} else if syncAttempts >= syncRetries {
-			a.installerMsg("Unable to sync salt modules\nInstallation failed.", "error")
-		}
-	}
 
 	// send wmi sysinfo
 	a.Logger.Debugln("Getting sysinfo with WMI")
@@ -379,7 +286,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		a.Logger.Debugln(a.Nssm, s)
 		_, _ = CMD(a.Nssm, s, 25, false)
 	}
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	svcCommands := [10][]string{
 		// winagentsvc
@@ -414,6 +321,17 @@ func (a *WindowsAgent) Install(i *Installer) {
 	if i.RDP {
 		a.Logger.Infoln("Enabling RDP...")
 		EnableRDP()
+	}
+
+	if !i.NoSalt {
+		st := SchedTask{
+			Type:    "installsalt",
+			Name:    "TacticalRMM_installsalt",
+			Trigger: "manual",
+		}
+		a.CreateSchedTask(st)
+		time.Sleep(500 * time.Millisecond)
+		RunSchedTask("TacticalRMM_installsalt")
 	}
 
 	a.installerMsg("Installation was successfull!\nAllow a few minutes for the agent to properly display in the RMM", "info")

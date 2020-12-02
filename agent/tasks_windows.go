@@ -191,6 +191,10 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		path = "shutdown.exe"
 		workdir = filepath.Join(os.Getenv("SYSTEMROOT"), "System32")
 		args = "/r /t 5 /f"
+	case "installsalt":
+		path = "tacticalrmm.exe"
+		workdir = a.ProgramDir
+		args = "-m installsalt"
 	}
 
 	action = taskmaster.ExecAction{
@@ -255,6 +259,21 @@ func EnableSchedTask(st SchedTask) error {
 		return err
 	}
 	return nil
+}
+
+func RunSchedTask(name string) {
+	conn, err := taskmaster.Connect()
+	if err != nil {
+		return
+	}
+	defer conn.Disconnect()
+
+	task, err := conn.GetRegisteredTask(fmt.Sprintf("\\%s", name))
+	if err != nil {
+		return
+	}
+	defer task.Release()
+	task.Run()
 }
 
 // CleanupSchedTasks removes all tacticalrmm sched tasks during uninstall

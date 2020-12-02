@@ -34,7 +34,7 @@ func main() {
 	power := flag.Bool("power", false, "Disable sleep/hibernate")
 	rdp := flag.Bool("rdp", false, "Enable RDP")
 	ping := flag.Bool("ping", false, "Enable ping")
-	localSalt := flag.String("local-salt", "", "Path to salt executable")
+	nosalt := flag.Bool("nosalt", false, "Does not install salt")
 	localMesh := flag.String("local-mesh", "", "Path to mesh executable")
 	cert := flag.String("cert", "", "Path to domain CA .pem")
 	flag.Parse()
@@ -81,8 +81,8 @@ func main() {
 		a.SyncMeshNodeID()
 	case "cleanup":
 		a.UninstallCleanup()
-	case "updatesalt":
-		a.UpdateSalt()
+	case "installsalt":
+		a.InstallSalt()
 	case "fixsalt": // deprecated, will be removed in future release
 		return
 	case "taskrunner":
@@ -106,10 +106,10 @@ func main() {
 			RDP:         *rdp,
 			Ping:        *ping,
 			Token:       *token,
-			LocalSalt:   *localSalt,
 			LocalMesh:   *localMesh,
 			Cert:        *cert,
 			Timeout:     *timeout,
+			NoSalt:      *nosalt,
 		})
 	default:
 		agent.ShowStatus(version)

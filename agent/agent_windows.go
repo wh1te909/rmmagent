@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -797,93 +796,104 @@ func (a *WindowsAgent) CleanupPythonAgent() {
 	_, _ = a.LocalSaltCall("task.delete_task", []string{"TacticalRMM_fixsalt"}, 45)
 }
 
-// UpdateSalt downloads the latest salt minion and performs an update
-func (a *WindowsAgent) UpdateSalt() {
-	url := fmt.Sprintf("%s/api/v3/%s/saltminion/", a.Server, a.AgentID)
-	req := APIRequest{
-		URL:       url,
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
-
-	req.Method = "GET"
-	a.Logger.Debugln(req)
-
-	r, err := req.MakeRequest()
-	if err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-
-	if r.IsError() {
-		return
-	}
-
-	type SaltResp struct {
-		CurrentVer  string `json:"currentVer"`
-		LatestVer   string `json:"latestVer"`
-		SaltID      string `json:"salt_id"`
-		DownloadURL string `json:"downloadURL"`
-	}
-	data := SaltResp{}
-
-	if err := json.Unmarshal(r.Body(), &data); err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-
-	installedVer := a.GetProgramVersion("salt minion")
-	if data.LatestVer == installedVer {
-		a.Logger.Warnf("Salt latest ver %s same as installed ver %s. Skipping.\n", data.LatestVer, installedVer)
-		return
-	}
-
-	a.Logger.Infof("Updating salt from %s to %s\n", installedVer, data.LatestVer)
-
-	minion := filepath.Join(a.ProgramDir, a.SaltInstaller)
-	if FileExists(minion) {
-		_ = os.Remove(minion)
-	}
-
+func (a *WindowsAgent) InstallSalt() {
 	rClient := resty.New()
 	rClient.SetCloseConnection(true)
-	rClient.SetTimeout(45 * time.Minute)
+	rClient.SetTimeout(25 * time.Minute)
+	rClient.SetDebug(a.Debug)
+	rClient.SetHeaders(a.Headers)
 
-	r1, derr := rClient.R().SetOutput(minion).Get(data.DownloadURL)
-	if derr != nil {
-		a.Logger.Errorln("Unable to download salt-minion for update:", derr)
-		return
+	saltMin := filepath.Join(a.ProgramDir, a.SaltInstaller)
+	a.Logger.Debugln("Downloading salt minion from:", a.SaltMinion)
+	r, err := rClient.R().SetOutput(saltMin).Get(a.SaltMinion)
+	if err != nil {
+		a.Logger.Fatalln("Unable to download salt-minion:", err)
+	}
+	if r.IsError() {
+		a.Logger.Fatalln("Unable to download salt-minion. Status code", r.StatusCode())
 	}
 
-	if r1.IsError() {
-		a.Logger.Errorln("Unable to download salt-minion for update:", r1.StatusCode())
-		return
+	// install salt
+	a.Logger.Debugln("changing dir to", a.ProgramDir)
+	cdErr := os.Chdir(a.ProgramDir)
+	if cdErr != nil {
+		a.installerMsg(cdErr.Error(), "error")
 	}
-	_, _ = CMD(a.Nssm, []string{"stop", "salt-minion"}, 120, false)
-	_ = os.Chdir(a.ProgramDir)
 
-	updateArgs := []string{
+	saltInstallArgs := []string{
 		"/S",
 		"/custom-config=saltcustom",
 		fmt.Sprintf("/master=%s", a.DB.SaltMaster),
-		fmt.Sprintf("/minion-name=%s", data.SaltID),
+		fmt.Sprintf("/minion-name=%s", a.DB.SaltID),
 		"/start-minion=1",
 	}
 
-	_, saltErr := CMD(a.SaltInstaller, updateArgs, 900, false)
-
+	a.Logger.Debugln("Installing salt with:", a.SaltInstaller, saltInstallArgs)
+	_, saltErr := CMD(a.SaltInstaller, saltInstallArgs, 900, false)
 	if saltErr != nil {
-		a.Logger.Errorln("Failed to update salt:", saltErr)
-		_, _ = CMD(a.Nssm, []string{"start", "salt-minion"}, 60, false)
-		return
+		a.Logger.Fatalln("Error installing salt-minion:", saltErr)
+	}
+	time.Sleep(10 * time.Second)
+
+	// accept the salt key on the rmm
+	a.Logger.Debugln("Registering salt with the RMM")
+	acceptPayload := map[string]string{"saltid": a.DB.SaltID, "agent_id": a.AgentID}
+	acceptAttempts := 0
+	acceptRetries := 10
+	for {
+		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v3/saltminion/", a.DB.Server))
+		if err != nil {
+			a.Logger.Debugln(err)
+			acceptAttempts++
+			time.Sleep(5 * time.Second)
+		}
+
+		if r.StatusCode() != 200 {
+			a.Logger.Debugln(r.String())
+			acceptAttempts++
+			time.Sleep(5 * time.Second)
+		} else {
+			acceptAttempts = 0
+		}
+
+		if acceptAttempts == 0 {
+			a.Logger.Debugln(r.String())
+			break
+		} else if acceptAttempts >= acceptRetries {
+			a.Logger.Fatalln("Unable to register salt with the RMM.")
+		}
 	}
 
-	req.URL = a.Server + "/api/v3/saltminion/"
-	req.Method = "PUT"
-	req.Payload = map[string]string{"ver": data.LatestVer, "agent_id": a.AgentID}
-	_, _ = req.MakeRequest()
+	time.Sleep(10 * time.Second)
 
-	a.Logger.Infof("Salt was updated from %s to %s\n", installedVer, data.LatestVer)
+	// sync salt modules
+	a.Logger.Debugln("Syncing salt modules")
+	syncPayload := map[string]string{"agent_id": a.AgentID}
+	syncAttempts := 0
+	syncRetries := 10
+	for {
+		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v3/saltminion/", a.DB.Server))
+		if err != nil {
+			a.Logger.Debugln(err)
+			syncAttempts++
+			time.Sleep(5 * time.Second)
+		}
+
+		if r.StatusCode() != 200 {
+			a.Logger.Debugln(r.String())
+			syncAttempts++
+			time.Sleep(5 * time.Second)
+		} else {
+			syncAttempts = 0
+		}
+
+		if syncAttempts == 0 {
+			a.Logger.Debugln(r.String())
+			break
+		} else if syncAttempts >= syncRetries {
+			a.Logger.Errorln("Unable to register salt with the RMM.")
+		}
+	}
+	a.Logger.Infoln("Salt was installed.")
+	DeleteSchedTask("TacticalRMM_installsalt")
 }
