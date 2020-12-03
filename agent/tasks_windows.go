@@ -127,17 +127,18 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 }
 
 type SchedTask struct {
-	PK       int                  `json:"pk"`
-	Type     string               `json:"type"`
-	Name     string               `json:"name"`
-	Trigger  string               `json:"trigger"`
-	Enabled  bool                 `json:"enabled"`
-	WeekDays taskmaster.DayOfWeek `json:"weekdays"`
-	Year     int                  `json:"year"`
-	Month    string               `json:"month"`
-	Day      int                  `json:"day"`
-	Hour     int                  `json:"hour"`
-	Minute   int                  `json:"min"`
+	PK          int                  `json:"pk"`
+	Type        string               `json:"type"`
+	Name        string               `json:"name"`
+	Trigger     string               `json:"trigger"`
+	Enabled     bool                 `json:"enabled"`
+	DeleteAfter bool                 `json:"deleteafter"`
+	WeekDays    taskmaster.DayOfWeek `json:"weekdays"`
+	Year        int                  `json:"year"`
+	Month       string               `json:"month"`
+	Day         int                  `json:"day"`
+	Hour        int                  `json:"hour"`
+	Minute      int                  `json:"min"`
 }
 
 func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
@@ -156,11 +157,22 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 	now := time.Now()
 	switch st.Trigger {
 	case "once":
-		trigger = taskmaster.TimeTrigger{
-			TaskTrigger: taskmaster.TaskTrigger{
-				Enabled:       true,
-				StartBoundary: time.Date(st.Year, getMonth(st.Month), st.Day, st.Hour, st.Minute, 0, 0, now.Location()),
-			},
+		if st.DeleteAfter {
+			deleteAfterDate := time.Date(st.Year, getMonth(st.Month), st.Day, st.Hour, st.Minute, 0, 0, now.Location())
+			trigger = taskmaster.TimeTrigger{
+				TaskTrigger: taskmaster.TaskTrigger{
+					Enabled:       true,
+					StartBoundary: deleteAfterDate,
+					EndBoundary:   deleteAfterDate.Add(10 * time.Minute),
+				},
+			}
+		} else {
+			trigger = taskmaster.TimeTrigger{
+				TaskTrigger: taskmaster.TaskTrigger{
+					Enabled:       true,
+					StartBoundary: time.Date(st.Year, getMonth(st.Month), st.Day, st.Hour, st.Minute, 0, 0, now.Location()),
+				},
+			}
 		}
 	case "weekly":
 		trigger = taskmaster.WeeklyTrigger{
@@ -214,6 +226,9 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 	def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_PARALLEL
 	def.Settings.StopIfGoingOnBatteries = false
 	def.Settings.WakeToRun = true
+	if st.DeleteAfter {
+		def.Settings.DeleteExpiredTaskAfter = "PT15M"
+	}
 
 	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
 	if err != nil {
