@@ -106,10 +106,11 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 	def.Settings.StopIfGoingOnBatteries = false
 	def.Settings.WakeToRun = true
 
-	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", name), def, true)
+	task, success, err := conn.CreateTask(fmt.Sprintf("\\%s", name), def, true)
 	if err != nil {
 		return false, err
 	}
+	defer task.Release()
 
 	if success {
 		// https://github.com/capnspacehook/taskmaster/issues/15
@@ -230,11 +231,12 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		def.Settings.DeleteExpiredTaskAfter = "PT15M"
 	}
 
-	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
+	task, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
 	if err != nil {
 		a.Logger.Errorln(err)
 		return false, err
 	}
+	defer task.Release()
 
 	return success, nil
 }
@@ -274,21 +276,6 @@ func EnableSchedTask(st SchedTask) error {
 		return err
 	}
 	return nil
-}
-
-func RunSchedTask(name string) {
-	conn, err := taskmaster.Connect()
-	if err != nil {
-		return
-	}
-	defer conn.Disconnect()
-
-	task, err := conn.GetRegisteredTask(fmt.Sprintf("\\%s", name))
-	if err != nil {
-		return
-	}
-	defer task.Release()
-	task.Run()
 }
 
 // CleanupSchedTasks removes all tacticalrmm sched tasks during uninstall

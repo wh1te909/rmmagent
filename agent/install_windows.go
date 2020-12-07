@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/capnspacehook/taskmaster"
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 )
@@ -329,9 +330,26 @@ func (a *WindowsAgent) Install(i *Installer) {
 			Name:    "TacticalRMM_installsalt",
 			Trigger: "manual",
 		}
-		a.CreateSchedTask(st)
-		time.Sleep(500 * time.Millisecond)
-		RunSchedTask("TacticalRMM_installsalt")
+		success, err := a.CreateSchedTask(st)
+		if success {
+			time.Sleep(1 * time.Second)
+			conn, err := taskmaster.Connect()
+			if err != nil {
+				a.Logger.Errorln(err)
+			}
+			defer conn.Disconnect()
+
+			task, err := conn.GetRegisteredTask("\\TacticalRMM_installsalt")
+			if err != nil {
+				a.Logger.Errorln(err)
+			}
+			defer task.Release()
+			task.Run()
+		} else {
+			if err != nil {
+				a.Logger.Errorln(err)
+			}
+		}
 	}
 
 	a.installerMsg("Installation was successfull!\nAllow a few minutes for the agent to properly display in the RMM", "info")

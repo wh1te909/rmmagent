@@ -38,12 +38,16 @@ type HelloPatch struct {
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
 	a.InstallRPCService()
+	a.CreateSyncTask()
 	a.CleanupPythonAgent()
 	var data map[string]interface{}
 	var sleep int
 
 	a.Logger.Debugln("Sleeping for 20 seconds")
 	time.Sleep(20 * time.Second)
+	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/ENABLE"}, 10, false)
+	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_sync", "/ENABLE"}, 10, false)
+
 	url := a.Server + "/api/v3/hello/"
 	req := APIRequest{
 		URL:       url,
