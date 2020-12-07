@@ -85,7 +85,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	iClient.SetHeaders(i.Headers)
 	creds, cerr := iClient.R().Get(fmt.Sprintf("%s/api/v3/installer/", baseURL))
 	if cerr != nil {
-		a.installerMsg(err.Error(), "error")
+		a.installerMsg(cerr.Error(), "error")
 	}
 	if creds.StatusCode() == 401 {
 		a.installerMsg("Installer token has expired. Please generate a new one.", "error")
@@ -94,7 +94,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	verPayload := map[string]string{"version": a.Version}
 	iVersion, ierr := iClient.R().SetBody(verPayload).Post(fmt.Sprintf("%s/api/v3/installer/", baseURL))
 	if ierr != nil {
-		a.installerMsg(err.Error(), "error")
+		a.installerMsg(ierr.Error(), "error")
 	}
 	if iVersion.StatusCode() != 200 {
 		a.installerMsg(DjangoStringResp(iVersion.String()), "error")
