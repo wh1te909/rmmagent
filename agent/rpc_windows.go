@@ -258,8 +258,12 @@ func (a *WindowsAgent) RunRPC() {
 
 		case "sysinfo":
 			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				a.Logger.Debugln("Getting sysinfo with WMI")
 				a.GetWMI()
+				ret.Encode("ok")
+				msg.Respond(resp)
 			}()
 
 		case "runchecks":
