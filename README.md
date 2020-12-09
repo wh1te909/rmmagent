@@ -28,7 +28,7 @@ Do __not__ change any of the following or this will break on the RMM end
 Build the 64 bit agent
 ```
 goversioninfo -64
-env CGO_ENABLED=1 GOARCH=amd64 go build -o tacticalrmm.exe
+env CGO_ENABLED=1 GOARCH=amd64 go build -ldflags "-s -w" -o tacticalrmm.exe
 "c:/Program Files (x86)\Inno Setup 6\ISCC.exe" build/setup.iss
 ```
 
@@ -36,7 +36,7 @@ Build the 32 bit agent
 ```
 rm resource.syso tacticalrmm.exe
 goversioninfo
-env CGO_ENABLED=1 GOARCH=386 go build -o tacticalrmm.exe
+env CGO_ENABLED=1 GOARCH=386 go build -ldflags "-s -w" -o tacticalrmm.exe
 "c:/Program Files (x86)\Inno Setup 6\ISCC.exe" build/setup-x86.iss
 ```
 
