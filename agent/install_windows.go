@@ -366,7 +366,7 @@ func (a *WindowsAgent) checkExistingAndRemove() {
 	agentDB := filepath.Join(a.ProgramDir, "agentdb.db")
 	if FileExists(installedMesh) || FileExists(installedSalt) || FileExists(agentDB) {
 		tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
-		tacUninstArgs := []string{tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES"}
+		tacUninstArgs := []string{tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS"}
 
 		window := w32.GetForegroundWindow()
 		if window != 0 {
@@ -379,7 +379,7 @@ func (a *WindowsAgent) checkExistingAndRemove() {
 		} else {
 			fmt.Println("Existing installation found and must be removed before attempting to reinstall.")
 			fmt.Println("Run the following command to uninstall, and then re-run this installer.")
-			fmt.Printf("\"%s\" %s %s", tacUninstArgs[0], tacUninstArgs[1], tacUninstArgs[2])
+			fmt.Printf(`"%s" %s %s %s`, tacUninstArgs[0], tacUninstArgs[1], tacUninstArgs[2], tacUninstArgs[3])
 		}
 		os.Exit(0)
 	}

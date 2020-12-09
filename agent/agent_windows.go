@@ -743,7 +743,7 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/DISABLE"}, 10, false)
 
 	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
-	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", fmt.Sprintf("/LOG=%s", innoLogFile)}
+	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS", fmt.Sprintf("/LOG=%s", innoLogFile)}
 	a.Logger.Debugln(strings.Join(args, " "))
 	cmd := exec.Command("cmd.exe", args...)
 	cmd.SysProcAttr = &windows.SysProcAttr{
@@ -754,7 +754,7 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 
 func (a *WindowsAgent) AgentUninstall() {
 	tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
-	args := []string{"/C", tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES"}
+	args := []string{"/C", tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS"}
 	cmd := exec.Command("cmd.exe", args...)
 	cmd.SysProcAttr = &windows.SysProcAttr{
 		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
