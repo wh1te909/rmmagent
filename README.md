@@ -5,7 +5,7 @@ https://github.com/wh1te909/tacticalrmm
 ### Building the windows agent with custom branding
 Download and install the following prereqs
 - [TDM-GCC](https://github.com/jmeubank/tdm-gcc/releases/download/v9.2.0-tdm64-1/tdm64-gcc-9.2.0.exe)
-- [Golang](https://golang.org/dl/go1.15.3.windows-amd64.msi)
+- [Golang](https://golang.org/dl/go1.15.5.windows-amd64.msi)
 - [Inno Setup](https://jrsoftware.org/isdl.php)
 - [Git bash](https://github.com/git-for-windows/git/releases/download/v2.29.1.windows.1/Git-2.29.1-64-bit.exe)
 

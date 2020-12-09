@@ -1,5 +1,5 @@
 #define MyAppName "Tactical RMM Agent"
-#define MyAppVersion "1.1.2"
+#define MyAppVersion "1.1.3"
 #define MyAppPublisher "Tactical Techs"
 #define MyAppURL "https://github.com/wh1te909"
 #define MyAppExeName "tacticalrmm.exe"
@@ -83,6 +83,7 @@ procedure StartServices();
 var
   ResultCode: Integer;
 begin
+  Exec('cmd.exe', '/c ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('cmd.exe', '/c net start tacticalagent && ping 127.0.0.1 -n 5', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Start tacticalagent: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c net start checkrunner && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
