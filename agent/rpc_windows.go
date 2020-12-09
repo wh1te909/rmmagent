@@ -265,7 +265,11 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode("ok")
 				msg.Respond(resp)
 			}()
-
+		case "sync":
+			go func() {
+				a.Logger.Debugln("Sending sysinfo and software")
+				a.Sync()
+			}()
 		case "runchecks":
 			go func() {
 				a.Logger.Debugln("Running checks")
@@ -280,6 +284,10 @@ func (a *WindowsAgent) RunRPC() {
 
 		case "agentupdate":
 			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode("ok")
+				msg.Respond(resp)
 				a.AgentUpdate(p.Data["url"], p.Data["inno"], p.Data["version"])
 			}(payload)
 

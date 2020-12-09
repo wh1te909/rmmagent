@@ -16,7 +16,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/capnspacehook/taskmaster"
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
@@ -647,8 +646,8 @@ func (a *WindowsAgent) SendSoftware() {
 }
 
 func (a *WindowsAgent) UninstallCleanup() {
-	CleanupSchedTasks()
 	a.CleanupAgentUpdates()
+	CleanupSchedTasks()
 }
 
 // ShowStatus prints windows service status
@@ -741,90 +740,16 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 		a.Logger.Errorln(err)
 		return
 	}
-	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
-	code := fmt.Sprintf(`
-@echo off
-
-ping 127.0.0.1 -n 3
-"%s" stop tacticalagent
-"%s" stop checkrunner
-"%s" stop tacticalrpc
-ping 127.0.0.1 -n 2
-taskkill /F /IM tacticalrmm.exe
-ping 127.0.0.1 -n 2
-"%s" /VERYSILENT /SUPPRESSMSGBOXES /LOG="%s"
-ping 127.0.0.1 -n 45
-"%s" start tacticalagent
-ping 127.0.0.1 -n 5
-"%s" start checkrunner
-ping 127.0.0.1 -n 2
-"%s" start tacticalrpc
-
-`, a.Nssm, a.Nssm, a.Nssm, updater, innoLogFile, a.Nssm, a.Nssm, a.Nssm)
-
-	content := []byte(code)
-
-	tmpfn, _ := ioutil.TempFile(dir, "*.bat")
-	if _, err := tmpfn.Write(content); err != nil {
-		a.Logger.Errorln(err)
-		return
-	}
-	a.Logger.Debugln(tmpfn.Name())
-
-	conn, err := taskmaster.Connect()
-	if err != nil {
-		a.Logger.Errorln(err)
-		return
-	}
-	defer conn.Disconnect()
-
-	now := time.Now()
-	def := conn.NewTaskDefinition()
-	trigger := taskmaster.TimeTrigger{
-		TaskTrigger: taskmaster.TaskTrigger{
-			Enabled:       true,
-			StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
-			EndBoundary:   now.Add(10 * time.Minute),
-		},
-	}
-	def.AddTrigger(trigger)
-	action := taskmaster.ExecAction{
-		Path: tmpfn.Name(),
-	}
-	def.AddAction(action)
-	def.Principal.RunLevel = taskmaster.TASK_RUNLEVEL_HIGHEST
-	def.Principal.LogonType = taskmaster.TASK_LOGON_SERVICE_ACCOUNT
-	def.Principal.UserID = "SYSTEM"
-	def.Settings.AllowDemandStart = true
-	def.Settings.AllowHardTerminate = true
-	def.Settings.DontStartOnBatteries = false
-	def.Settings.Enabled = true
-	def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_IGNORE_NEW
-	def.Settings.StopIfGoingOnBatteries = false
-	def.Settings.WakeToRun = true
-	def.Settings.DeleteExpiredTaskAfter = "PT15M"
-
-	ctask, _, err := conn.CreateTask("\\TacticalRMM_agentupdate", def, true)
-	if err != nil {
-		a.Logger.Errorln(err)
-		return
-	}
-	ctask.Release()
-	time.Sleep(1 * time.Second)
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/DISABLE"}, 10, false)
-	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_sync", "/DISABLE"}, 10, false)
-	time.Sleep(1 * time.Second)
 
-	task, err := conn.GetRegisteredTask("\\TacticalRMM_agentupdate")
-	if err != nil {
-		a.Logger.Errorln(err)
-		return
+	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
+	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", fmt.Sprintf("/LOG=%s", innoLogFile)}
+	a.Logger.Debugln(strings.Join(args, " "))
+	cmd := exec.Command("cmd.exe", args...)
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
 	}
-	defer task.Release()
-	_, err = task.Run()
-	if err != nil {
-		a.Logger.Errorln(err)
-	}
+	cmd.Start()
 }
 
 func (a *WindowsAgent) AgentUninstall() {
@@ -860,50 +785,6 @@ func (a *WindowsAgent) CleanupAgentUpdates() {
 	if err == nil {
 		for _, f := range folders {
 			os.RemoveAll(f)
-		}
-	}
-}
-
-// CleanupPythonAgent cleans up files from the old python agent if this is an upgrade
-func (a *WindowsAgent) CleanupPythonAgent() {
-	cderr := os.Chdir(a.ProgramDir)
-	if cderr != nil {
-		return
-	}
-
-	fileMatches := []string{
-		"*.dll",
-		"*.pyd",
-		"base_library*",
-		"*.manifest",
-		"onit.ico",
-		"VERSION",
-	}
-
-	for _, match := range fileMatches {
-		files, err := filepath.Glob(match)
-		if err == nil {
-			for _, f := range files {
-				os.Remove(f)
-			}
-		}
-	}
-
-	folderMatches := []string{
-		"certifi",
-		"Include",
-		"lib2to3",
-		"psutil",
-		"tcl",
-		"tk",
-	}
-
-	for _, match := range folderMatches {
-		folders, err := filepath.Glob(match)
-		if err == nil {
-			for _, f := range folders {
-				os.RemoveAll(f)
-			}
 		}
 	}
 }
@@ -1007,16 +888,4 @@ func (a *WindowsAgent) InstallSalt() {
 		}
 	}
 	a.Logger.Infoln("Salt was installed.")
-	DeleteSchedTask("TacticalRMM_installsalt")
-}
-
-// for older agents
-func (a *WindowsAgent) CreateSyncTask() {
-	tasks := ListSchedTasks()
-	for _, task := range tasks {
-		if task == "TacticalRMM_sync" {
-			return
-		}
-	}
-	a.CreateInternalTask("TacticalRMM_sync", "-m sync", "15", 6)
 }

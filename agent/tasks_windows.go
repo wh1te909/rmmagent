@@ -89,7 +89,7 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 	def.AddTrigger(dailyTrigger)
 
 	action := taskmaster.ExecAction{
-		Path:       a.EXE,
+		Path:       "tacticalrmm.exe",
 		WorkingDir: a.ProgramDir,
 		Args:       args,
 	}
@@ -106,11 +106,10 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 	def.Settings.StopIfGoingOnBatteries = false
 	def.Settings.WakeToRun = true
 
-	task, success, err := conn.CreateTask(fmt.Sprintf("\\%s", name), def, true)
+	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", name), def, true)
 	if err != nil {
 		return false, err
 	}
-	defer task.Release()
 
 	if success {
 		// https://github.com/capnspacehook/taskmaster/issues/15
@@ -191,6 +190,14 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
 			},
 		}
+	case "oninstall":
+		trigger = taskmaster.TimeTrigger{
+			TaskTrigger: taskmaster.TaskTrigger{
+				Enabled:       true,
+				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
+				EndBoundary:   time.Now().Add(10 * time.Minute),
+			},
+		}
 	}
 
 	def.AddTrigger(trigger)
@@ -231,12 +238,11 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		def.Settings.DeleteExpiredTaskAfter = "PT15M"
 	}
 
-	task, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
+	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
 	if err != nil {
 		a.Logger.Errorln(err)
 		return false, err
 	}
-	defer task.Release()
 
 	return success, nil
 }
@@ -266,12 +272,10 @@ func EnableSchedTask(st SchedTask) error {
 	if err != nil {
 		return err
 	}
-	defer task.Release()
 
-	def := task.Definition
-	def.Settings.Enabled = st.Enabled
+	task.Definition.Settings.Enabled = st.Enabled
 
-	_, err = conn.UpdateTask(task.Path, def)
+	_, err = conn.UpdateTask(task.Path, task.Definition)
 	if err != nil {
 		return err
 	}
@@ -292,11 +296,11 @@ func CleanupSchedTasks() {
 	}
 
 	for _, task := range tasks {
-		defer task.Release()
 		if strings.HasPrefix(task.Name, "TacticalRMM_") {
 			conn.DeleteTask(fmt.Sprintf("\\%s", task.Name))
 		}
 	}
+	tasks.Release()
 }
 
 func ListSchedTasks() []string {
@@ -314,9 +318,9 @@ func ListSchedTasks() []string {
 	}
 
 	for _, task := range tasks {
-		defer task.Release()
 		ret = append(ret, task.Name)
 	}
+	tasks.Release()
 	return ret
 }
 
