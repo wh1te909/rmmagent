@@ -49,22 +49,22 @@ func (a *WindowsAgent) WinAgentSvc() {
 }
 
 func (a *WindowsAgent) CheckIn() error {
-
+	a.Logger.Debugln("CheckIn start")
 	var data map[string]interface{}
 	url := a.Server + "/api/v3/hello/"
 
-	plat, osinfo := OSInfo()
+	plat, osinfo := a.OSInfo()
 	payload := HelloPatch{
 		Agentid:  a.AgentID,
 		Hostname: a.Hostname,
 		OS:       osinfo,
-		TotalRAM: TotalRAM(),
+		TotalRAM: a.TotalRAM(),
 		Platform: plat,
-		PublicIP: PublicIP(),
+		PublicIP: a.PublicIP(),
 		Disks:    a.GetDisks(),
-		Username: LoggedOnUser(),
+		Username: a.LoggedOnUser(),
 		Version:  a.Version,
-		BootTime: BootTime(),
+		BootTime: a.BootTime(),
 	}
 
 	req := APIRequest{
@@ -119,6 +119,7 @@ func (a *WindowsAgent) CheckIn() error {
 			}
 		}
 	}
+	a.Logger.Debugln("CheckIn end")
 	return nil
 }
 

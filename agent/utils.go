@@ -28,7 +28,7 @@ type APIRequest struct {
 }
 
 // MakeRequest creates an api request to the RMM
-func (r *APIRequest) MakeRequest() (*resty.Response, error) {
+func (r APIRequest) MakeRequest() (*resty.Response, error) {
 	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetHeaders(r.Headers)
@@ -61,21 +61,25 @@ func (r *APIRequest) MakeRequest() (*resty.Response, error) {
 
 // PublicIP returns the agent's public ip
 // Tries 2 times before giving up
-func PublicIP() string {
+func (a *WindowsAgent) PublicIP() string {
+	a.Logger.Debugln("PublicIP start")
 	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetTimeout(7 * time.Second)
-	urls := []string{"https://ifconfig.co/ip", "https://icanhazip.com"}
+	urls := []string{"https://icanhazip.com", "https://ifconfig.co/ip"}
 
 	for _, url := range urls {
 		r, err := client.R().Get(url)
 		if err != nil {
+			a.Logger.Debugln("PublicIP err", err)
 			continue
 		}
 		ip := StripAll(r.String())
 		if !IsValidIP(ip) {
+			a.Logger.Debugln("PublicIP not valid", ip)
 			continue
 		}
+		a.Logger.Debugln("PublicIP return: ", ip)
 		return ip
 	}
 	return "error"
@@ -113,15 +117,24 @@ func FileExists(path string) bool {
 }
 
 // TotalRAM returns total RAM in GB
-func TotalRAM() float64 {
-	host, _ := ps.Host()
-	mem, _ := host.Memory()
+func (a *WindowsAgent) TotalRAM() float64 {
+	host, err := ps.Host()
+	if err != nil {
+		return 8.0
+	}
+	mem, err := host.Memory()
+	if err != nil {
+		return 8.0
+	}
 	return math.Ceil(float64(mem.Total) / 1073741824.0)
 }
 
 // BootTime returns system boot time as a unix timestamp
-func BootTime() int64 {
-	host, _ := ps.Host()
+func (a *WindowsAgent) BootTime() int64 {
+	host, err := ps.Host()
+	if err != nil {
+		return 1000
+	}
 	info := host.Info()
 	return info.BootTime.Unix()
 }

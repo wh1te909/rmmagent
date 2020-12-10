@@ -174,7 +174,7 @@ func ArchInfo(programDir string) (nssm, mesh, saltexe, saltinstaller string) {
 }
 
 // OSInfo returns os names formatted
-func OSInfo() (plat, osFullName string) {
+func (a *WindowsAgent) OSInfo() (plat, osFullName string) {
 	host, _ := ps.Host()
 	info := host.Info()
 	os := info.OS
@@ -394,9 +394,10 @@ func DisableSleepHibernate() {
 }
 
 // LoggedOnUser returns the first logged on user it finds
-func LoggedOnUser() string {
+func (a *WindowsAgent) LoggedOnUser() string {
 	users, err := wapf.ListLoggedInUsers()
 	if err != nil {
+		a.Logger.Debugln("LoggedOnUser error", err)
 		return "None"
 	}
 
@@ -743,13 +744,19 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/DISABLE"}, 10, false)
 
 	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
-	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS", fmt.Sprintf("/LOG=%s", innoLogFile)}
-	a.Logger.Debugln(strings.Join(args, " "))
-	cmd := exec.Command("cmd.exe", args...)
-	cmd.SysProcAttr = &windows.SysProcAttr{
-		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+	args := []string{"/CREATE", "/F", "/TN", "TacticalRMM_agentupdate", "/SC", "ONCE", "/RU", "SYSTEM",
+		"/TR", fmt.Sprintf(`"%s" /VERYSILENT /SUPPRESSMSGBOXES /FORCECLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /LOG="%s"`, updater, innoLogFile),
+		"/ST", "00:00",
 	}
-	cmd.Start()
+	a.Logger.Debugln(strings.Join(args, " "))
+	out, err := CMD("schtasks.exe", args, 10, false)
+	if err != nil {
+		a.Logger.Errorln(err)
+		return
+	}
+	a.Logger.Debugln(out)
+	CMD("schtasks.exe", []string{"/RUN", "/TN", "TacticalRMM_agentupdate"}, 5, false)
+	CMD("schtasks.exe", []string{"/DELETE", "/F", "/TN", "TacticalRMM_agentupdate"}, 5, false)
 }
 
 func (a *WindowsAgent) AgentUninstall() {

@@ -190,14 +190,6 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
 			},
 		}
-	case "oninstall":
-		trigger = taskmaster.TimeTrigger{
-			TaskTrigger: taskmaster.TaskTrigger{
-				Enabled:       true,
-				StartBoundary: time.Date(1975, 1, 1, 1, 0, 0, 0, now.Location()),
-				EndBoundary:   time.Now().Add(10 * time.Minute),
-			},
-		}
 	}
 
 	def.AddTrigger(trigger)
@@ -211,10 +203,6 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		path = "shutdown.exe"
 		workdir = filepath.Join(os.Getenv("SYSTEMROOT"), "System32")
 		args = "/r /t 5 /f"
-	case "installsalt":
-		path = "tacticalrmm.exe"
-		workdir = a.ProgramDir
-		args = "-m installsalt"
 	}
 
 	action = taskmaster.ExecAction{

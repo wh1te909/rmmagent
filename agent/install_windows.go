@@ -320,20 +320,17 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	if !i.NoSalt {
-		st := SchedTask{
-			Type:        "installsalt",
-			Name:        "TacticalRMM_installsalt",
-			Trigger:     "oninstall",
-			DeleteAfter: true,
+		args := []string{"/CREATE", "/F", "/TN", "TacticalRMM_installsalt", "/SC", "ONCE", "/RU", "SYSTEM",
+			"/TR", fmt.Sprintf(`"%s" -m installsalt`, a.EXE), "/ST", "00:00",
 		}
-		success, err := a.CreateSchedTask(st)
-		if success {
-			time.Sleep(1 * time.Second)
-			CMD("schtasks", []string{"/run", "/TN", "TacticalRMM_installsalt"}, 10, false)
+		a.Logger.Debugln(strings.Join(args, " "))
+		out, err := CMD("schtasks.exe", args, 10, false)
+		if err != nil {
+			a.Logger.Debugln(err)
 		} else {
-			if err != nil {
-				a.Logger.Errorln(err)
-			}
+			a.Logger.Debugln(out)
+			CMD("schtasks.exe", []string{"/RUN", "/TN", "TacticalRMM_installsalt"}, 10, false)
+			CMD("schtasks.exe", []string{"/DELETE", "/F", "/TN", "TacticalRMM_installsalt"}, 10, false)
 		}
 	}
 

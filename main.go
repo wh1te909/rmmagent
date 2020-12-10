@@ -37,6 +37,9 @@ func main() {
 	nosalt := flag.Bool("nosalt", false, "Does not install salt")
 	localMesh := flag.String("local-mesh", "", "Path to mesh executable")
 	cert := flag.String("cert", "", "Path to domain CA .pem")
+	updateurl := flag.String("updateurl", "", "Download link to updater")
+	inno := flag.String("inno", "", "Inno setup file")
+	updatever := flag.String("updatever", "", "Update version")
 	flag.Parse()
 
 	if *ver {
@@ -90,6 +93,12 @@ func main() {
 			return
 		}
 		a.RunTask(*taskPK)
+	case "update":
+		if *updateurl == "" || *inno == "" || *updatever == "" {
+			updateUsage()
+			return
+		}
+		a.AgentUpdate(*updateurl, *inno, *updatever)
 	case "install":
 		log.SetOutput(os.Stdout)
 		if *api == "" || *clientID == 0 || *siteID == 0 || *token == "" {
@@ -144,4 +153,9 @@ func installUsage() {
 	case "linux":
 		// todo
 	}
+}
+
+func updateUsage() {
+	u := `Usage: tacticalrmm.exe -m update -updateurl https://example.com/winagent-vX.X.X.exe -inno winagent-vX.X.X.exe -updatever 1.1.1`
+	fmt.Println(u)
 }

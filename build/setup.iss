@@ -29,6 +29,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -39,7 +40,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "C:\Users\Public\Documents\rmmagent\tacticalrmm.exe"; DestDir: "{app}"; Flags: ignoreversion; BeforeInstall: StopServices;
 Source: "C:\Users\Public\Documents\rmmagent\build\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion;
-Source: "C:\Users\Public\Documents\rmmagent\build\saltcustom"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: StartServices;
+Source: "C:\Users\Public\Documents\rmmagent\build\saltcustom"; DestDir: "{app}"; Flags: ignoreversion;
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -79,7 +80,7 @@ begin
   Log('taskkill: ' + IntToStr(ResultCode));
 end;
 
-procedure StartServices();
+procedure DeinitializeSetup();
 var
   ResultCode: Integer;
 begin
