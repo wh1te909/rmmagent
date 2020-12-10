@@ -66,7 +66,7 @@ Type: filesandordirs; Name: "{#SALTDIR}";
 Type: filesandordirs; Name: "{#MESHDIR}";
 
 [Code]
-procedure DeinitializeSetup();
+procedure StopServices();
 var
   ResultCode: Integer;
 begin
@@ -80,7 +80,7 @@ begin
   Log('taskkill: ' + IntToStr(ResultCode));
 end;
 
-procedure StartServices();
+procedure DeinitializeSetup();
 var
   ResultCode: Integer;
 begin
