@@ -38,7 +38,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\Public\Documents\rmmagent\tacticalrmm.exe"; DestDir: "{app}"; Flags: ignoreversion; BeforeInstall: StopServices;
+Source: "C:\Users\Public\Documents\rmmagent\tacticalrmm.exe"; DestDir: "{app}"; Flags: ignoreversion;
 Source: "C:\Users\Public\Documents\rmmagent\build\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion;
 Source: "C:\Users\Public\Documents\rmmagent\build\saltcustom"; DestDir: "{app}"; Flags: ignoreversion;
 
@@ -66,7 +66,7 @@ Type: filesandordirs; Name: "{#SALTDIR}";
 Type: filesandordirs; Name: "{#MESHDIR}";
 
 [Code]
-procedure StopServices();
+function InitializeSetup(): boolean;
 var
   ResultCode: Integer;
 begin
@@ -78,6 +78,8 @@ begin
   Log('Stop tacticalrpc: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('taskkill: ' + IntToStr(ResultCode));
+
+  Result := True;
 end;
 
 procedure DeinitializeSetup();
