@@ -37,14 +37,23 @@ func (a *WindowsAgent) WinAgentSvc() {
 	}
 
 	time.Sleep(2 * time.Second)
-	sleep := randRange(30, 90)
-	for {
-		err = a.CheckIn()
-		if err != nil {
-			a.Logger.Debugln("CheckIn:", err)
-		}
-		a.Logger.Debugln("CheckIn sleeping for", sleep)
-		time.Sleep(time.Duration(sleep) * time.Second)
+	ferr := a.CheckIn()
+	if ferr != nil {
+		a.Logger.Debugln("First CheckIn error:", ferr)
+	}
+
+	sleep := randRange(45, 110)
+	a.Logger.Debugln("Sleep interval:", sleep)
+
+	checkInTicker := time.NewTicker(time.Duration(sleep) * time.Second)
+
+	for range checkInTicker.C {
+		go func() {
+			cerr := a.CheckIn()
+			if cerr != nil {
+				a.Logger.Debugln("CheckIn error:", cerr)
+			}
+		}()
 	}
 }
 
