@@ -40,6 +40,7 @@ func main() {
 	updateurl := flag.String("updateurl", "", "Download link to updater")
 	inno := flag.String("inno", "", "Inno setup file")
 	updatever := flag.String("updatever", "", "Update version")
+	silent := flag.Bool("silent", false, "Do not popup any message boxes during installation")
 	flag.Parse()
 
 	if *ver {
@@ -119,6 +120,7 @@ func main() {
 			Cert:        *cert,
 			Timeout:     *timeout,
 			NoSalt:      *nosalt,
+			Silent:      *silent,
 		})
 	default:
 		agent.ShowStatus(version)

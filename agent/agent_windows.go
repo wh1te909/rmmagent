@@ -689,9 +689,9 @@ func ShowStatus(version string) {
 	}
 }
 
-func (a *WindowsAgent) installerMsg(msg, alert string) {
+func (a *WindowsAgent) installerMsg(msg, alert string, silent bool) {
 	window := w32.GetForegroundWindow()
-	if window != 0 {
+	if !silent && window != 0 {
 		var (
 			handle w32.HWND
 			flags  uint
@@ -852,7 +852,7 @@ func (a *WindowsAgent) InstallSalt() {
 	a.Logger.Debugln("changing dir to", a.ProgramDir)
 	cdErr := os.Chdir(a.ProgramDir)
 	if cdErr != nil {
-		a.installerMsg(cdErr.Error(), "error")
+		a.Logger.Fatalln(cdErr)
 	}
 
 	saltInstallArgs := []string{
