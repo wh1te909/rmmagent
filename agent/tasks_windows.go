@@ -139,6 +139,10 @@ type SchedTask struct {
 	Day         int                  `json:"day"`
 	Hour        int                  `json:"hour"`
 	Minute      int                  `json:"min"`
+	Path        string               `json:"path"`
+	WorkDir     string               `json:"workdir"`
+	Args        string               `json:"args"`
+	Parallel    bool                 `json:"parallel"`
 }
 
 func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
@@ -203,6 +207,10 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		path = "shutdown.exe"
 		workdir = filepath.Join(os.Getenv("SYSTEMROOT"), "System32")
 		args = "/r /t 5 /f"
+	case "custom":
+		path = st.Path
+		workdir = st.WorkDir
+		args = st.Args
 	}
 
 	action = taskmaster.ExecAction{
@@ -219,11 +227,15 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 	def.Settings.AllowHardTerminate = true
 	def.Settings.DontStartOnBatteries = false
 	def.Settings.Enabled = true
-	def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_PARALLEL
 	def.Settings.StopIfGoingOnBatteries = false
 	def.Settings.WakeToRun = true
 	if st.DeleteAfter {
 		def.Settings.DeleteExpiredTaskAfter = "PT15M"
+	}
+	if st.Parallel {
+		def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_PARALLEL
+	} else {
+		def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_IGNORE_NEW
 	}
 
 	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
