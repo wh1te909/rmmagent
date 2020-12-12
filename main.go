@@ -75,6 +75,12 @@ func main() {
 		a.SendSoftware()
 	case "sync":
 		a.Sync()
+	case "checkin":
+		a.CheckIn()
+	case "basicinfo":
+		a.SysInfo()
+	case "startup":
+		a.AgentStartup()
 	case "recoversalt":
 		a.RecoverSalt()
 	case "recovermesh":
@@ -89,6 +95,8 @@ func main() {
 		a.InstallSalt()
 	case "fixsalt": // deprecated, will be removed in future release
 		return
+	case "publicip":
+		fmt.Println(a.PublicIP())
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return

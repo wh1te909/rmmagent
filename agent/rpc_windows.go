@@ -282,6 +282,29 @@ func (a *WindowsAgent) RunRPC() {
 				a.RunTask(p.TaskPK)
 			}(payload)
 
+		case "checkin":
+			go func() {
+				a.CheckIn()
+			}()
+
+		case "startup":
+			go func() {
+				a.AgentStartup()
+			}()
+
+		case "basicinfo":
+			go func() {
+				a.SysInfo()
+			}()
+
+		case "publicip":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode(a.PublicIP())
+				msg.Respond(resp)
+			}()
+
 		case "agentupdate":
 			go func(p *NatsMsg) {
 				var resp []byte

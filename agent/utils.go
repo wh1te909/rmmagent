@@ -60,13 +60,13 @@ func (r APIRequest) MakeRequest() (*resty.Response, error) {
 }
 
 // PublicIP returns the agent's public ip
-// Tries 2 times before giving up
+// Tries 3 times before giving up
 func (a *WindowsAgent) PublicIP() string {
 	a.Logger.Debugln("PublicIP start")
 	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetTimeout(7 * time.Second)
-	urls := []string{"https://icanhazip.com", "https://ifconfig.co/ip"}
+	urls := []string{"https://icanhazip.xlawgaming.com/", "https://icanhazip.com", "https://ifconfig.co/ip"}
 
 	for _, url := range urls {
 		r, err := client.R().Get(url)

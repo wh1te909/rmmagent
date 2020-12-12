@@ -2,13 +2,12 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"time"
 )
 
-//HelloPatch patch
-type HelloPatch struct {
+//CheckInPut patch
+type CheckInPut struct {
 	Agentid  string  `json:"agent_id"`
 	Hostname string  `json:"hostname"`
 	OS       string  `json:"operating_system"`
@@ -31,39 +30,42 @@ func (a *WindowsAgent) WinAgentSvc() {
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/ENABLE"}, 10, false)
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_sync", "/f"}, 10, false)
 
-	err := a.AgentStartup()
-	if err != nil {
-		a.Logger.Debugln("AgentStartup", err)
-	}
+	a.AgentStartup()
 
 	time.Sleep(2 * time.Second)
-	ferr := a.CheckIn()
-	if ferr != nil {
-		a.Logger.Debugln("First CheckIn error:", ferr)
-	}
+	a.CheckIn()
 
-	sleep := randRange(45, 110)
-	a.Logger.Debugln("Sleep interval:", sleep)
+	time.Sleep(2 * time.Second)
+	a.SysInfo()
 
-	checkInTicker := time.NewTicker(time.Duration(sleep) * time.Second)
+	checkInSleep := randRange(45, 110)
+	checkInSysInfo := randRange(300, 600)
+	a.Logger.Debugln("CheckIn interval:", checkInSleep)
+	a.Logger.Debugln("SysInfo interval:", checkInSysInfo)
 
-	for range checkInTicker.C {
-		go func() {
-			cerr := a.CheckIn()
-			if cerr != nil {
-				a.Logger.Debugln("CheckIn error:", cerr)
-			}
-		}()
+	checkInTicker := time.NewTicker(time.Duration(checkInSleep) * time.Second)
+	sysInfoTicker := time.NewTicker(time.Duration(checkInSysInfo) * time.Second)
+
+	for {
+		select {
+		case <-checkInTicker.C:
+			go func() {
+				a.CheckIn()
+			}()
+		case <-sysInfoTicker.C:
+			go func() {
+				a.SysInfo()
+			}()
+		}
 	}
 }
 
-func (a *WindowsAgent) CheckIn() error {
-	a.Logger.Debugln("CheckIn start")
-	var data map[string]interface{}
-	url := a.Server + "/api/v3/hello/"
+func (a *WindowsAgent) SysInfo() {
+	a.Logger.Debugln("SysInfo start")
+	url := a.Server + "/api/v3/checkin/"
 
 	plat, osinfo := a.OSInfo()
-	payload := HelloPatch{
+	payload := CheckInPut{
 		Agentid:  a.AgentID,
 		Hostname: a.Hostname,
 		OS:       osinfo,
@@ -79,7 +81,7 @@ func (a *WindowsAgent) CheckIn() error {
 	req := APIRequest{
 		URL:       url,
 		Headers:   a.Headers,
-		Method:    "PATCH",
+		Method:    "PUT",
 		Payload:   payload,
 		Timeout:   20,
 		LocalCert: a.DB.Cert,
@@ -87,20 +89,51 @@ func (a *WindowsAgent) CheckIn() error {
 	}
 	a.Logger.Debugln(req)
 
+	_, err := req.MakeRequest()
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
+	a.Logger.Debugln("SysInfo end")
+}
+
+func (a *WindowsAgent) CheckIn() {
+	a.Logger.Debugln("CheckIn start")
+	var data map[string]interface{}
+	url := a.Server + "/api/v3/checkin/"
+
+	payload := struct {
+		Agentid string `json:"agent_id"`
+		Version string `json:"version"`
+	}{a.AgentID, a.Version}
+
+	req := APIRequest{
+		URL:       url,
+		Headers:   a.Headers,
+		Method:    "PATCH",
+		Payload:   payload,
+		Timeout:   15,
+		LocalCert: a.DB.Cert,
+		Debug:     a.Debug,
+	}
+	a.Logger.Debugln(req)
+
 	r, err := req.MakeRequest()
 	if err != nil {
-		return err
+		a.Logger.Debugln("CheckIn error:", err)
+		return
 	}
 
 	if r.IsError() {
-		return fmt.Errorf("bad hello response, code: %d", r.StatusCode())
+		a.Logger.Debugln("CheckIn response:", r.StatusCode())
+		return
 	}
 
 	ret := DjangoStringResp(r.String())
 	a.Logger.Debugln("Django ret:", ret)
 	if len(ret) > 0 && ret != "ok" {
 		if err := json.Unmarshal(r.Body(), &data); err != nil {
-			return err
+			a.Logger.Debugln("CheckIn unmarshal error:", err)
+			return
 		}
 		// recovery
 		if action, ok := data["recovery"].(string); ok {
@@ -129,17 +162,16 @@ func (a *WindowsAgent) CheckIn() error {
 		}
 	}
 	a.Logger.Debugln("CheckIn end")
-	return nil
 }
 
-func (a *WindowsAgent) AgentStartup() error {
-	url := a.Server + "/api/v3/hello/"
+func (a *WindowsAgent) AgentStartup() {
+	url := a.Server + "/api/v3/checkin/"
 	a.Logger.Debugln(url)
 
 	payload := struct {
 		Agentid  string `json:"agent_id"`
 		Hostname string `json:"hostname"`
-	}{Agentid: a.AgentID, Hostname: a.Hostname}
+	}{a.AgentID, a.Hostname}
 	a.Logger.Debugln(payload)
 
 	req := APIRequest{
@@ -155,15 +187,14 @@ func (a *WindowsAgent) AgentStartup() error {
 
 	r, err := req.MakeRequest()
 	if err != nil {
-		return err
+		a.Logger.Debugln("Startup error:", err)
+		return
 	}
 
 	if r.IsError() {
-		return fmt.Errorf("bad startup response, code: %d", r.StatusCode())
+		a.Logger.Debugln("Startup response:", r.StatusCode())
 	}
-
-	a.Logger.Debugln(r.String())
-	return nil
+	a.Logger.Debugln("Startup:", r.String())
 }
 
 func randRange(min, max int) int {
