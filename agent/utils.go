@@ -86,14 +86,14 @@ func (a *WindowsAgent) PublicIP() string {
 }
 
 // GenerateAgentID creates and returns a unique agent id
-func GenerateAgentID(hostname string) string {
+func GenerateAgentID() string {
 	rand.Seed(time.Now().UnixNano())
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, 35)
+	b := make([]rune, 40)
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
-	return string(b) + "-" + hostname
+	return string(b)
 }
 
 // ShowVersionInfo prints basic debugging info

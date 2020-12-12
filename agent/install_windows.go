@@ -41,7 +41,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		"content-type":  "application/json",
 		"Authorization": fmt.Sprintf("Token %s", i.Token),
 	}
-	a.AgentID = GenerateAgentID(a.Hostname)
+	a.AgentID = GenerateAgentID()
 	a.Logger.Debugln("Agent ID:", a.AgentID)
 
 	u, err := url.Parse(i.RMM)
