@@ -294,7 +294,7 @@ func (a *WindowsAgent) RunRPC() {
 
 		case "basicinfo":
 			go func() {
-				a.SysInfo()
+				a.SysInfo("all")
 			}()
 
 		case "publicip":

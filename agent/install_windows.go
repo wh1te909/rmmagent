@@ -258,7 +258,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// set new headers, no longer knox auth...use agent auth
 	rClient.SetHeaders(a.Headers)
 
-	a.SysInfo()
+	a.SysInfo("all")
 
 	// send wmi sysinfo
 	a.Logger.Debugln("Getting sysinfo with WMI")

@@ -8,16 +8,17 @@ import (
 
 //CheckInPut patch
 type CheckInPut struct {
-	Agentid  string  `json:"agent_id"`
-	Hostname string  `json:"hostname"`
-	OS       string  `json:"operating_system"`
-	TotalRAM float64 `json:"total_ram"`
-	Platform string  `json:"plat"`
-	PublicIP string  `json:"public_ip"`
-	Disks    []Disk  `json:"disks"`
-	Username string  `json:"logged_in_username"`
-	Version  string  `json:"version"`
-	BootTime int64   `json:"boot_time"`
+	Agentid  string           `json:"agent_id"`
+	Hostname string           `json:"hostname"`
+	OS       string           `json:"operating_system"`
+	TotalRAM float64          `json:"total_ram"`
+	Platform string           `json:"plat"`
+	PublicIP string           `json:"public_ip"`
+	Disks    []Disk           `json:"disks"`
+	Services []WindowsService `json:"services"`
+	Username string           `json:"logged_in_username"`
+	Version  string           `json:"version"`
+	BootTime int64            `json:"boot_time"`
 }
 
 // WinAgentSvc tacticalagent windows nssm service
@@ -36,15 +37,17 @@ func (a *WindowsAgent) WinAgentSvc() {
 	a.CheckIn()
 
 	time.Sleep(2 * time.Second)
-	a.SysInfo()
+	a.SysInfo("all")
 
 	checkInSleep := randRange(45, 110)
-	checkInSysInfo := randRange(300, 600)
 	a.Logger.Debugln("CheckIn interval:", checkInSleep)
-	a.Logger.Debugln("SysInfo interval:", checkInSysInfo)
 
 	checkInTicker := time.NewTicker(time.Duration(checkInSleep) * time.Second)
-	sysInfoTicker := time.NewTicker(time.Duration(checkInSysInfo) * time.Second)
+	basicInfoTicker := time.NewTicker(9 * time.Minute)
+	publicIPTicker := time.NewTicker(5 * time.Minute)
+	winSvcTicker := time.NewTicker(4 * time.Minute)
+	disksTicker := time.NewTicker(7 * time.Minute)
+	loggedUserTicker := time.NewTicker(8 * time.Minute)
 
 	for {
 		select {
@@ -52,30 +55,83 @@ func (a *WindowsAgent) WinAgentSvc() {
 			go func() {
 				a.CheckIn()
 			}()
-		case <-sysInfoTicker.C:
+		case <-basicInfoTicker.C:
 			go func() {
-				a.SysInfo()
+				a.SysInfo("basic")
+			}()
+		case <-publicIPTicker.C:
+			go func() {
+				a.SysInfo("publicip")
+			}()
+		case <-winSvcTicker.C:
+			go func() {
+				a.SysInfo("winsvcs")
+			}()
+		case <-disksTicker.C:
+			go func() {
+				a.SysInfo("disks")
+			}()
+		case <-loggedUserTicker.C:
+			go func() {
+				a.SysInfo("loggeduser")
 			}()
 		}
 	}
 }
 
-func (a *WindowsAgent) SysInfo() {
-	a.Logger.Debugln("SysInfo start")
+func (a *WindowsAgent) SysInfo(mode string) {
+	var payload interface{}
+	a.Logger.Debugln("SysInfo start:", mode)
 	url := a.Server + "/api/v3/checkin/"
 
-	plat, osinfo := a.OSInfo()
-	payload := CheckInPut{
-		Agentid:  a.AgentID,
-		Hostname: a.Hostname,
-		OS:       osinfo,
-		TotalRAM: a.TotalRAM(),
-		Platform: plat,
-		PublicIP: a.PublicIP(),
-		Disks:    a.GetDisks(),
-		Username: a.LoggedOnUser(),
-		Version:  a.Version,
-		BootTime: a.BootTime(),
+	switch mode {
+	case "all":
+		plat, osinfo := a.OSInfo()
+		payload = CheckInPut{
+			Services: a.GetServices(),
+			Agentid:  a.AgentID,
+			Hostname: a.Hostname,
+			OS:       osinfo,
+			TotalRAM: a.TotalRAM(),
+			Platform: plat,
+			PublicIP: a.PublicIP(),
+			Disks:    a.GetDisks(),
+			Username: a.LoggedOnUser(),
+			Version:  a.Version,
+			BootTime: a.BootTime(),
+		}
+	case "publicip":
+		payload = struct {
+			PublicIP string `json:"public_ip"`
+			Agentid  string `json:"agent_id"`
+		}{a.PublicIP(), a.AgentID}
+	case "basic":
+		plat, osinfo := a.OSInfo()
+		payload = struct {
+			Hostname string  `json:"hostname"`
+			OS       string  `json:"operating_system"`
+			TotalRAM float64 `json:"total_ram"`
+			Platform string  `json:"plat"`
+			BootTime int64   `json:"boot_time"`
+			Agentid  string  `json:"agent_id"`
+		}{a.Hostname, osinfo, a.TotalRAM(), plat, a.BootTime(), a.AgentID}
+	case "disks":
+		payload = struct {
+			Disks   []Disk `json:"disks"`
+			Agentid string `json:"agent_id"`
+		}{a.GetDisks(), a.AgentID}
+	case "winsvcs":
+		payload = struct {
+			Services []WindowsService `json:"services"`
+			Agentid  string           `json:"agent_id"`
+		}{a.GetServices(), a.AgentID}
+	case "loggeduser":
+		payload = struct {
+			Username string `json:"logged_in_username"`
+			Agentid  string `json:"agent_id"`
+		}{a.LoggedOnUser(), a.AgentID}
+	default:
+		return
 	}
 
 	req := APIRequest{
@@ -93,7 +149,7 @@ func (a *WindowsAgent) SysInfo() {
 	if err != nil {
 		a.Logger.Debugln(err)
 	}
-	a.Logger.Debugln("SysInfo end")
+	a.Logger.Debugln("SysInfo end:", mode)
 }
 
 func (a *WindowsAgent) CheckIn() {

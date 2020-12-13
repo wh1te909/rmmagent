@@ -78,7 +78,7 @@ func main() {
 	case "checkin":
 		a.CheckIn()
 	case "basicinfo":
-		a.SysInfo()
+		a.SysInfo("all")
 	case "startup":
 		a.AgentStartup()
 	case "recoversalt":
