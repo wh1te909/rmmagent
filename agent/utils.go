@@ -28,7 +28,7 @@ type APIRequest struct {
 }
 
 // MakeRequest creates an api request to the RMM
-func (r APIRequest) MakeRequest() (*resty.Response, error) {
+func (r *APIRequest) MakeRequest() (*resty.Response, error) {
 	client := resty.New()
 	client.SetCloseConnection(true)
 	client.SetHeaders(r.Headers)
