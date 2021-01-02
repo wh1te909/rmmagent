@@ -77,7 +77,7 @@ func main() {
 		a.Sync()
 	case "checkin":
 		a.CheckIn()
-	case "basicinfo":
+	case "checkinfull":
 		a.SysInfo("all")
 	case "startup":
 		a.AgentStartup()
