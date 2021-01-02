@@ -729,69 +729,33 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	r, err := rClient.R().SetOutput(updater).Get(url)
 	if err != nil {
 		a.Logger.Errorln(err)
+		CMD("net", []string{"start", "tacticalrpc"}, 10, false)
 		return
 	}
 	if r.IsError() {
 		a.Logger.Errorln("Download failed with status code", r.StatusCode())
+		CMD("net", []string{"start", "tacticalrpc"}, 10, false)
 		return
 	}
 
 	dir, err := ioutil.TempDir("", "tacticalrmm")
 	if err != nil {
 		a.Logger.Errorln("Agentupdate create tempdir:", err)
+		CMD("net", []string{"start", "tacticalrpc"}, 10, false)
 		return
-	}
-
-	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
-
-	st := SchedTask{
-		Name:    "TacticalRMM_agentupdate",
-		Trigger: "manual",
-		Type:    "custom",
-		Path:    updater,
-		Args:    fmt.Sprintf(`/VERYSILENT /SUPPRESSMSGBOXES /FORCECLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /LOG="%s"`, innoLogFile),
-	}
-
-	fallback := false
-	success, err := a.CreateSchedTask(st)
-	if err != nil {
-		a.Logger.Errorln("Unable to create agentupdate task using Windows API, trying with schtasks.exe", err)
-		fallback = true
-	}
-	if !success {
-		a.Logger.Errorln("Unable to create agentupdate task using Windows API, trying with schtasks.exe")
-		fallback = true
-	} else {
-		a.Logger.Debugln("Successfully created agentupdate task with Windows API")
-	}
-
-	if fallback {
-		args := []string{"/CREATE", "/F", "/TN", "TacticalRMM_agentupdate", "/SC", "ONCE", "/RU", "SYSTEM",
-			"/TR", fmt.Sprintf(`"%s" /VERYSILENT /SUPPRESSMSGBOXES /FORCECLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /LOG="%s"`, updater, innoLogFile),
-			"/ST", "00:00",
-		}
-		a.Logger.Debugln(strings.Join(args, " "))
-		out, err := CMD("schtasks.exe", args, 10, false)
-		if err != nil {
-			a.Logger.Errorln(err)
-			return
-		}
-		a.Logger.Debugln(out)
 	}
 
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/DISABLE"}, 10, false)
 
-	rout, err := CMD("schtasks.exe", []string{"/RUN", "/TN", "TacticalRMM_agentupdate"}, 5, false)
-	if err != nil {
-		a.Logger.Errorln("Run agentupdate task:", err)
-	}
-	a.Logger.Debugln(rout)
+	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
 
-	dout, err := CMD("schtasks.exe", []string{"/DELETE", "/F", "/TN", "TacticalRMM_agentupdate"}, 5, false)
-	if err != nil {
-		a.Logger.Errorln("Delete agentupdate task:", err)
+	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS", "/NORESTARTAPPLICATIONS", fmt.Sprintf("/LOG=%s", innoLogFile)}
+	cmd := exec.Command("cmd.exe", args...)
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
 	}
-	a.Logger.Debugln(dout)
+	cmd.Start()
+	time.Sleep(1 * time.Second)
 }
 
 func (a *WindowsAgent) AgentUninstall() {

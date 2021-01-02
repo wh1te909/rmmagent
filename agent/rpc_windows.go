@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
@@ -21,6 +22,8 @@ type NatsMsg struct {
 	ScheduledTask SchedTask         `json:"schedtaskpayload"`
 }
 
+var runCheckLocker uint32
+
 func (a *WindowsAgent) RunRPC() {
 	a.Logger.Infoln("RPC service started")
 	a.Logger.Debugln("Sleeping for 15 seconds")
@@ -32,7 +35,7 @@ func (a *WindowsAgent) RunRPC() {
 	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
-		a.Logger.Errorln(err)
+		a.Logger.Fatalln(err)
 	}
 
 	nc.Subscribe(a.AgentID, func(msg *nats.Msg) {
@@ -212,6 +215,23 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}(payload)
 
+		case "runscriptfull":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				start := time.Now()
+				out, err, retcode, _ := a.RunScript(p.Data["code"], p.Data["shell"], p.ScriptArgs, p.Timeout)
+				retData := struct {
+					Stdout   string  `json:"stdout"`
+					Stderr   string  `json:"stderr"`
+					Retcode  int     `json:"retcode"`
+					ExecTime float64 `json:"execution_time"`
+				}{out, err, retcode, time.Since(start).Seconds()}
+				a.Logger.Debugln(retData)
+				ret.Encode(retData)
+				msg.Respond(resp)
+			}(payload)
+
 		case "recover":
 			go func(p *NatsMsg) {
 				var resp []byte
@@ -272,8 +292,16 @@ func (a *WindowsAgent) RunRPC() {
 			}()
 		case "runchecks":
 			go func() {
-				a.Logger.Debugln("Running checks")
-				a.RunChecks()
+				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
+					a.Logger.Debugln("Checks are already running, please wait")
+				} else {
+					a.Logger.Debugln("Running checks")
+					defer atomic.StoreUint32(&runCheckLocker, 0)
+					_, cerr := CMD(a.EXE, []string{"-m", "runchecks"}, 3600, false)
+					if cerr != nil {
+						a.Logger.Debugln(cerr)
+					}
+				}
 			}()
 
 		case "runtask":
@@ -292,9 +320,12 @@ func (a *WindowsAgent) RunRPC() {
 				a.AgentStartup()
 			}()
 
-		case "basicinfo":
+		case "checkinfull":
 			go func() {
-				a.SysInfo("all")
+				_, cerr := CMD(a.EXE, []string{"-m", "checkinfull"}, 120, false)
+				if cerr != nil {
+					a.Logger.Debugln(cerr)
+				}
 			}()
 
 		case "publicip":
@@ -312,6 +343,9 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode("ok")
 				msg.Respond(resp)
 				a.AgentUpdate(p.Data["url"], p.Data["inno"], p.Data["version"])
+				nc.Flush()
+				nc.Close()
+				os.Exit(0)
 			}(payload)
 
 		case "uninstall":
@@ -331,7 +365,7 @@ func (a *WindowsAgent) RunRPC() {
 
 	if err := nc.LastError(); err != nil {
 		a.Logger.Errorln(err)
-		return
+		os.Exit(1)
 	}
 
 	runtime.Goexit()
