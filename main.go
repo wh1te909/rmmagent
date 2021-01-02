@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	version = "1.1.11"
+	version = "1.1.12"
 	log     = logrus.New()
 	logFile *os.File
 )
