@@ -24,12 +24,10 @@ type CheckInPut struct {
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
-	a.InstallRPCService()
 
 	a.Logger.Debugln("Sleeping for 20 seconds")
 	time.Sleep(20 * time.Second)
 	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/ENABLE"}, 10, false)
-	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_sync", "/f"}, 10, false)
 
 	a.AgentStartup()
 
@@ -43,39 +41,8 @@ func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Debugln("CheckIn interval:", checkInSleep)
 
 	checkInTicker := time.NewTicker(time.Duration(checkInSleep) * time.Second)
-	basicInfoTicker := time.NewTicker(9 * time.Minute)
-	publicIPTicker := time.NewTicker(5 * time.Minute)
-	winSvcTicker := time.NewTicker(4 * time.Minute)
-	disksTicker := time.NewTicker(7 * time.Minute)
-	loggedUserTicker := time.NewTicker(8 * time.Minute)
-
-	for {
-		select {
-		case <-checkInTicker.C:
-			go func() {
-				a.CheckIn()
-			}()
-		case <-basicInfoTicker.C:
-			go func() {
-				a.SysInfo("basic")
-			}()
-		case <-publicIPTicker.C:
-			go func() {
-				a.SysInfo("publicip")
-			}()
-		case <-winSvcTicker.C:
-			go func() {
-				a.SysInfo("winsvcs")
-			}()
-		case <-disksTicker.C:
-			go func() {
-				a.SysInfo("disks")
-			}()
-		case <-loggedUserTicker.C:
-			go func() {
-				a.SysInfo("loggeduser")
-			}()
-		}
+	for range checkInTicker.C {
+		a.CheckIn()
 	}
 }
 
