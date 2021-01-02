@@ -336,6 +336,11 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}()
 
+		case "installsalt":
+			go func() {
+				CMD(a.EXE, []string{"-m", "installsalt"}, 3600, true)
+			}()
+
 		case "agentupdate":
 			go func(p *NatsMsg) {
 				var resp []byte

@@ -323,41 +323,10 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	if !i.NoSalt {
-		st := SchedTask{
-			Name:    "TacticalRMM_installsalt",
-			Trigger: "manual",
-			Type:    "custom",
-			Path:    "tacticalrmm.exe",
-			WorkDir: a.ProgramDir,
-			Args:    "-m installsalt",
-		}
-
-		fallback := false
-		success, err := a.CreateSchedTask(st)
+		_, err := rClient.R().Get(fmt.Sprintf("%s/api/v3/%s/installsalt/", baseURL, a.AgentID))
 		if err != nil {
-			a.Logger.Errorln("Unable to create salt-minion task using Windows API, trying with schtasks.exe", err)
-			fallback = true
+			a.Logger.Errorln("Install salt:", err)
 		}
-		if !success {
-			a.Logger.Errorln("Unable to create salt-minion task using Windows API, trying with schtasks.exe")
-			fallback = true
-		}
-
-		if fallback {
-			args := []string{"/CREATE", "/F", "/TN", "TacticalRMM_installsalt", "/SC", "ONCE", "/RU", "SYSTEM",
-				"/TR", fmt.Sprintf(`"%s" -m installsalt`, a.EXE), "/ST", "00:00",
-			}
-			a.Logger.Debugln(strings.Join(args, " "))
-			out, err := CMD("schtasks.exe", args, 10, false)
-			if err != nil {
-				a.Logger.Debugln(err)
-			} else {
-				a.Logger.Debugln(out)
-			}
-		}
-
-		CMD("schtasks.exe", []string{"/RUN", "/TN", "TacticalRMM_installsalt"}, 10, false)
-		CMD("schtasks.exe", []string{"/DELETE", "/F", "/TN", "TacticalRMM_installsalt"}, 10, false)
 	}
 
 	a.installerMsg("Installation was successfull!\nAllow a few minutes for the agent to properly display in the RMM", "info", i.Silent)
