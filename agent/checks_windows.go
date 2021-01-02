@@ -68,7 +68,10 @@ func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Debugln("Sleeping for 15 seconds")
 	time.Sleep(15 * time.Second)
 	for {
-		interval, _ := a.RunChecks()
+		interval, err := a.RunChecks()
+		if err != nil {
+			a.Logger.Debugln("RunChecks", err)
+		}
 		a.Logger.Debugln("Sleeping for", interval)
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
