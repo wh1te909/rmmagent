@@ -82,6 +82,8 @@ github.com/shirou/gopsutil/v3 v3.20.10 h1:7zomV9HJv6UGk225YtvEa5+camNLpbua3MAz/G
 github.com/shirou/gopsutil/v3 v3.20.10/go.mod h1:igHnfak0qnw1biGeI2qKQvu0ZkwvEkUcCLlYhZzdr/4=
 github.com/shirou/gopsutil/v3 v3.20.11 h1:NeVf1K0cgxsWz+N3671ojRptdgzvp7BXL3KV21R0JnA=
 github.com/shirou/gopsutil/v3 v3.20.11/go.mod h1:igHnfak0qnw1biGeI2qKQvu0ZkwvEkUcCLlYhZzdr/4=
+github.com/shirou/gopsutil/v3 v3.20.12 h1:abpcjSQRHdb3thCge/UyJty9CnvvmUHljTSrjtFU+Og=
+github.com/shirou/gopsutil/v3 v3.20.12/go.mod h1:igHnfak0qnw1biGeI2qKQvu0ZkwvEkUcCLlYhZzdr/4=
 github.com/sirupsen/logrus v1.7.0 h1:ShrD1U9pZB12TX0cVy0DtePoCH97K8EtX+mg7ZARUtM=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
