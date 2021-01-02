@@ -74,9 +74,9 @@ begin
   Log('Stop tacticalagent: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c net stop checkrunner', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop checkrunner: ' + IntToStr(ResultCode));
-  Exec('cmd.exe', '/c net stop tacticalrpc && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c net stop tacticalrpc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop tacticalrpc: ' + IntToStr(ResultCode));
-  Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe && ping 127.0.0.1 -n 2', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('taskkill: ' + IntToStr(ResultCode));
 
   Result := True;
