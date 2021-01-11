@@ -104,17 +104,33 @@ type CheckIn struct {
 	Version string `json:"version"`
 }
 
-type CheckInFull struct {
+type CheckInOS struct {
 	CheckIn
-	Hostname string           `json:"hostname"`
-	OS       string           `json:"operating_system"`
-	TotalRAM float64          `json:"total_ram"`
-	Platform string           `json:"plat"`
-	PublicIP string           `json:"public_ip"`
-	Disks    []Disk           `json:"disks"`
+	Hostname string  `json:"hostname"`
+	OS       string  `json:"operating_system"`
+	Platform string  `json:"plat"`
+	TotalRAM float64 `json:"total_ram"`
+	BootTime int64   `json:"boot_time"`
+}
+
+type CheckInWinServices struct {
+	CheckIn
 	Services []WindowsService `json:"services"`
-	Username string           `json:"logged_in_username"`
-	BootTime int64            `json:"boot_time"`
+}
+
+type CheckInPublicIP struct {
+	CheckIn
+	PublicIP string `json:"public_ip"`
+}
+
+type CheckInDisk struct {
+	CheckIn
+	Disks []Disk `json:"disks"`
+}
+
+type CheckInLoggedUser struct {
+	CheckIn
+	Username string `json:"logged_in_username"`
 }
 
 type Win32_ComputerSystemProduct struct {
