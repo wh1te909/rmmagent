@@ -25,6 +25,12 @@ type Disk struct {
 	Percent float64 `json:"percent"`
 }
 
+type MeshNodeID struct {
+	Func    string `json:"func"`
+	Agentid string `json:"agent_id"`
+	NodeID  string `json:"nodeid"`
+}
+
 type AssignedTask struct {
 	TaskPK  int  `json:"id"`
 	Enabled bool `json:"enabled"`
@@ -102,6 +108,11 @@ type CheckIn struct {
 	Func    string `json:"func"`
 	Agentid string `json:"agent_id"`
 	Version string `json:"version"`
+}
+
+type CheckInSW struct {
+	CheckIn
+	InstalledSW []SoftwareList `json:"software"`
 }
 
 type CheckInOS struct {
