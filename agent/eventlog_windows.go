@@ -9,20 +9,12 @@ import (
 	"unsafe"
 
 	"github.com/gonutz/w32"
+	rmm "github.com/wh1te909/rmmagent/shared"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
-type EventLogMsg struct {
-	Source    string `json:"source"`
-	EventType string `json:"eventType"`
-	EventID   uint32 `json:"eventID"`
-	Message   string `json:"message"`
-	Time      string `json:"time"`
-	UID       int    `json:"uid"` // for vue
-}
-
-func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []EventLogMsg {
+func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []rmm.EventLogMsg {
 	var (
 		oldestLog uint32
 		nextSize  uint32
@@ -31,7 +23,7 @@ func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []EventLo
 	buf := []byte{0}
 	size := uint32(1)
 
-	ret := make([]EventLogMsg, 0)
+	ret := make([]rmm.EventLogMsg, 0)
 	startTime := time.Now().Add(time.Duration(-(time.Duration(searchLastDays)) * (24 * time.Hour)))
 
 	h := w32.OpenEventLog("", logName)
@@ -89,7 +81,7 @@ func (a *WindowsAgent) GetEventLog(logName string, searchLastDays int) []EventLo
 		message, _ := getResourceMessage(logName, sourceName, r.EventID, argsptr)
 
 		uid++
-		eventLogMsg := EventLogMsg{
+		eventLogMsg := rmm.EventLogMsg{
 			Source:    sourceName,
 			EventType: eventType,
 			EventID:   eventID,

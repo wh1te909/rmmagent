@@ -20,9 +20,12 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 	_ "github.com/mattn/go-sqlite3" // ok
+	nats "github.com/nats-io/nats.go"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
+	"github.com/ugorji/go/codec"
 	wapf "github.com/wh1te909/go-win64api"
+	rmm "github.com/wh1te909/rmmagent/shared"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -192,19 +195,9 @@ func (a *WindowsAgent) OSInfo() (plat, osFullName string) {
 	return
 }
 
-// Disk holds physical disk info
-type Disk struct {
-	Device  string  `json:"device"`
-	Fstype  string  `json:"fstype"`
-	Total   uint64  `json:"total"`
-	Used    uint64  `json:"used"`
-	Free    uint64  `json:"free"`
-	Percent float64 `json:"percent"`
-}
-
 // GetDisks returns a list of fixed disks
-func (a *WindowsAgent) GetDisks() []Disk {
-	ret := make([]Disk, 0)
+func (a *WindowsAgent) GetDisks() []rmm.Disk {
+	ret := make([]rmm.Disk, 0)
 	partitions, err := disk.Partitions(false)
 	if err != nil {
 		a.Logger.Debugln(err)
@@ -225,7 +218,7 @@ func (a *WindowsAgent) GetDisks() []Disk {
 			continue
 		}
 
-		d := Disk{
+		d := rmm.Disk{
 			Device:  p.Device,
 			Fstype:  p.Fstype,
 			Total:   usage.Total,
@@ -507,7 +500,10 @@ func (a *WindowsAgent) RecoverSalt() {
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
-func (a *WindowsAgent) SyncMeshNodeID() {
+func (a *WindowsAgent) SyncMeshNodeID(nc *nats.Conn) {
+	var resp []byte
+	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+
 	out, err := CMD(a.MeshSystemEXE, []string{"-nodeid"}, 10, false)
 	if err != nil {
 		a.Logger.Debugln(err)
@@ -527,47 +523,23 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v3/%d/meshinfo/", a.Server, a.AgentPK)
-	req := APIRequest{
-		URL:       url,
-		Method:    "GET",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
+	payload := rmm.MeshNodeID{
+		Func:    "syncmesh",
+		Agentid: a.AgentID,
+		NodeID:  StripAll(stdout),
 	}
-
-	resp, err := req.MakeRequest()
-	if err != nil {
-		a.Logger.Debugln(err)
-		return
-	}
-
-	a.Logger.Debugln("Local Mesh:", StripAll(stdout))
-	a.Logger.Debugln("RMM Mesh:", DjangoStringResp(resp.String()))
-	a.Logger.Debugln("Status code:", resp.StatusCode())
-
-	if resp.StatusCode() == 200 && StripAll(stdout) != DjangoStringResp(resp.String()) {
-		payload := struct {
-			NodeID string `json:"nodeid"`
-		}{NodeID: StripAll(stdout)}
-
-		req.Method = "PATCH"
-		req.Payload = payload
-		if _, err := req.MakeRequest(); err != nil {
-			a.Logger.Debugln(err)
-		}
-	}
+	ret.Encode(payload)
+	nc.PublishRequest(a.AgentID, "syncmesh", resp)
 }
 
 //RecoverMesh recovers mesh agent
-func (a *WindowsAgent) RecoverMesh() {
+func (a *WindowsAgent) RecoverMesh(nc *nats.Conn) {
 	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
 	defer CMD("net", []string{"start", a.MeshSVC}, 60, false)
 
 	_, _ = CMD("net", []string{"stop", a.MeshSVC}, 60, false)
 	a.ForceKillMesh()
-	a.SyncMeshNodeID()
+	a.SyncMeshNodeID(nc)
 }
 
 //RecoverRPC recovers nats rpc service
@@ -745,8 +717,6 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 		return
 	}
 
-	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/DISABLE"}, 10, false)
-
 	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
 
 	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS", "/NORESTARTAPPLICATIONS", fmt.Sprintf("/LOG=%s", innoLogFile)}
@@ -758,8 +728,23 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	time.Sleep(1 * time.Second)
 }
 
+func (a *WindowsAgent) GetUninstallExe() string {
+	cderr := os.Chdir(a.ProgramDir)
+	if cderr == nil {
+		files, err := filepath.Glob("unins*.exe")
+		if err == nil {
+			for _, f := range files {
+				if strings.Contains(f, "001") {
+					return f
+				}
+			}
+		}
+	}
+	return "unins000.exe"
+}
+
 func (a *WindowsAgent) AgentUninstall() {
-	tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
+	tacUninst := filepath.Join(a.ProgramDir, a.GetUninstallExe())
 	args := []string{"/C", tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS"}
 	cmd := exec.Command("cmd.exe", args...)
 	cmd.SysProcAttr = &windows.SysProcAttr{

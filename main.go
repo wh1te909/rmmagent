@@ -75,26 +75,16 @@ func main() {
 		a.SendSoftware()
 	case "sync":
 		a.Sync()
-	case "checkin":
-		a.CheckIn()
-	case "checkinfull":
-		a.SysInfo("all")
-	case "startup":
-		a.AgentStartup()
+	case "wmi":
+		a.GetWMI()
 	case "recoversalt":
 		a.RecoverSalt()
-	case "recovermesh":
-		a.RecoverMesh()
 	case "winupdater":
 		a.InstallPatches()
-	case "fixmesh":
-		a.SyncMeshNodeID()
 	case "cleanup":
 		a.UninstallCleanup()
 	case "installsalt":
 		a.InstallSalt()
-	case "fixsalt": // deprecated, will be removed in future release
-		return
 	case "publicip":
 		fmt.Println(a.PublicIP())
 	case "taskrunner":

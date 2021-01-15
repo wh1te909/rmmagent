@@ -1,223 +1,149 @@
 package agent
 
 import (
-	"encoding/json"
+	"fmt"
 	"math/rand"
+	"os"
 	"time"
-)
 
-//CheckInPut patch
-type CheckInPut struct {
-	Agentid  string           `json:"agent_id"`
-	Hostname string           `json:"hostname"`
-	OS       string           `json:"operating_system"`
-	TotalRAM float64          `json:"total_ram"`
-	Platform string           `json:"plat"`
-	PublicIP string           `json:"public_ip"`
-	Disks    []Disk           `json:"disks"`
-	Services []WindowsService `json:"services"`
-	Username string           `json:"logged_in_username"`
-	Version  string           `json:"version"`
-	BootTime int64            `json:"boot_time"`
-}
+	nats "github.com/nats-io/nats.go"
+	"github.com/ugorji/go/codec"
+	rmm "github.com/wh1te909/rmmagent/shared"
+)
 
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
+	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
-	a.Logger.Debugln("Sleeping for 20 seconds")
-	time.Sleep(20 * time.Second)
-	CMD("schtasks", []string{"/Change", "/TN", "TacticalRMM_fixmesh", "/ENABLE"}, 10, false)
+	opts := []nats.Option{
+		nats.Name("TacticalRMM"),
+		nats.UserInfo(a.AgentID, a.Token),
+		nats.ReconnectBufSize(-1),
+		nats.ReconnectWait(time.Second * 5),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+	}
+	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 
-	a.AgentStartup()
+	nc, err := nats.Connect(server, opts...)
+	if err != nil {
+		a.Logger.Errorln(err)
+		os.Exit(1)
+	}
 
-	time.Sleep(2 * time.Second)
-	a.CheckIn()
+	startup := []string{"hello", "osinfo", "winservices", "publicip", "disks", "loggedonuser", "software"}
+	for _, s := range startup {
+		a.CheckIn(nc, s)
+		time.Sleep(600 * time.Millisecond)
+	}
+	a.SyncMeshNodeID(nc)
 
-	time.Sleep(2 * time.Second)
-	a.SysInfo("all")
+	checkInTicker := time.NewTicker(time.Duration(randRange(30, 90)) * time.Second)
+	checkInOSTicker := time.NewTicker(5 * time.Minute)
+	checkInWinSvcTicker := time.NewTicker(15 * time.Minute)
+	checkInPubIPTicker := time.NewTicker(6 * time.Minute)
+	checkInDisksTicker := time.NewTicker(4 * time.Minute)
+	checkInLoggedUserTicker := time.NewTicker(17 * time.Minute)
+	checkInSWTicker := time.NewTicker(45 * time.Minute)
+	syncMeshTicker := time.NewTicker(50 * time.Minute)
 
-	checkInSleep := randRange(45, 110)
-	a.Logger.Debugln("CheckIn interval:", checkInSleep)
-
-	checkInTicker := time.NewTicker(time.Duration(checkInSleep) * time.Second)
-	for range checkInTicker.C {
-		a.CheckIn()
+	for {
+		select {
+		case <-checkInTicker.C:
+			a.CheckIn(nc, "hello")
+		case <-checkInOSTicker.C:
+			a.CheckIn(nc, "osinfo")
+		case <-checkInWinSvcTicker.C:
+			a.CheckIn(nc, "winservices")
+		case <-checkInPubIPTicker.C:
+			a.CheckIn(nc, "publicip")
+		case <-checkInDisksTicker.C:
+			a.CheckIn(nc, "disks")
+		case <-checkInLoggedUserTicker.C:
+			a.CheckIn(nc, "loggedonuser")
+		case <-checkInSWTicker.C:
+			a.CheckIn(nc, "software")
+		case <-syncMeshTicker.C:
+			a.SyncMeshNodeID(nc)
+		}
 	}
 }
 
-func (a *WindowsAgent) SysInfo(mode string) {
+func (a *WindowsAgent) CheckIn(nc *nats.Conn, mode string) {
 	var payload interface{}
-	a.Logger.Debugln("SysInfo start:", mode)
-	url := a.Server + "/api/v3/checkin/"
+	var resp []byte
+	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 
 	switch mode {
-	case "all":
+	case "hello":
+		payload = rmm.CheckIn{
+			Func:    "hello",
+			Agentid: a.AgentID,
+			Version: a.Version,
+		}
+	case "osinfo":
 		plat, osinfo := a.OSInfo()
-		payload = CheckInPut{
-			Services: a.GetServices(),
-			Agentid:  a.AgentID,
+		payload = rmm.CheckInOS{
+			CheckIn: rmm.CheckIn{
+				Func:    "osinfo",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
 			Hostname: a.Hostname,
 			OS:       osinfo,
-			TotalRAM: a.TotalRAM(),
 			Platform: plat,
-			PublicIP: a.PublicIP(),
-			Disks:    a.GetDisks(),
-			Username: a.LoggedOnUser(),
-			Version:  a.Version,
+			TotalRAM: a.TotalRAM(),
 			BootTime: a.BootTime(),
 		}
+	case "winservices":
+		payload = rmm.CheckInWinServices{
+			CheckIn: rmm.CheckIn{
+				Func:    "winservices",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
+			Services: a.GetServices(),
+		}
 	case "publicip":
-		payload = struct {
-			PublicIP string `json:"public_ip"`
-			Agentid  string `json:"agent_id"`
-		}{a.PublicIP(), a.AgentID}
-	case "basic":
-		plat, osinfo := a.OSInfo()
-		payload = struct {
-			Hostname string  `json:"hostname"`
-			OS       string  `json:"operating_system"`
-			TotalRAM float64 `json:"total_ram"`
-			Platform string  `json:"plat"`
-			BootTime int64   `json:"boot_time"`
-			Agentid  string  `json:"agent_id"`
-		}{a.Hostname, osinfo, a.TotalRAM(), plat, a.BootTime(), a.AgentID}
+		payload = rmm.CheckInPublicIP{
+			CheckIn: rmm.CheckIn{
+				Func:    "publicip",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
+			PublicIP: a.PublicIP(),
+		}
 	case "disks":
-		payload = struct {
-			Disks   []Disk `json:"disks"`
-			Agentid string `json:"agent_id"`
-		}{a.GetDisks(), a.AgentID}
-	case "winsvcs":
-		payload = struct {
-			Services []WindowsService `json:"services"`
-			Agentid  string           `json:"agent_id"`
-		}{a.GetServices(), a.AgentID}
-	case "loggeduser":
-		payload = struct {
-			Username string `json:"logged_in_username"`
-			Agentid  string `json:"agent_id"`
-		}{a.LoggedOnUser(), a.AgentID}
-	default:
-		return
-	}
-
-	req := APIRequest{
-		URL:       url,
-		Headers:   a.Headers,
-		Method:    "PUT",
-		Payload:   payload,
-		Timeout:   20,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
-	a.Logger.Debugln(req)
-
-	_, err := req.MakeRequest()
-	if err != nil {
-		a.Logger.Debugln(err)
-	}
-	a.Logger.Debugln("SysInfo end:", mode)
-}
-
-func (a *WindowsAgent) CheckIn() {
-	a.Logger.Debugln("CheckIn start")
-	var data map[string]interface{}
-	url := a.Server + "/api/v3/checkin/"
-
-	payload := struct {
-		Agentid string `json:"agent_id"`
-		Version string `json:"version"`
-	}{a.AgentID, a.Version}
-
-	req := APIRequest{
-		URL:       url,
-		Headers:   a.Headers,
-		Method:    "PATCH",
-		Payload:   payload,
-		Timeout:   15,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
-	a.Logger.Debugln(req)
-
-	r, err := req.MakeRequest()
-	if err != nil {
-		a.Logger.Debugln("CheckIn error:", err)
-		return
-	}
-
-	if r.IsError() {
-		a.Logger.Debugln("CheckIn response:", r.StatusCode())
-		return
-	}
-
-	ret := DjangoStringResp(r.String())
-	a.Logger.Debugln("Django ret:", ret)
-	if len(ret) > 0 && ret != "ok" {
-		if err := json.Unmarshal(r.Body(), &data); err != nil {
-			a.Logger.Debugln("CheckIn unmarshal error:", err)
-			return
+		payload = rmm.CheckInDisk{
+			CheckIn: rmm.CheckIn{
+				Func:    "disks",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
+			Disks: a.GetDisks(),
 		}
-		// recovery
-		if action, ok := data["recovery"].(string); ok {
-			switch action {
-			case "salt":
-				a.RecoverSalt()
-			case "mesh":
-				a.RecoverMesh()
-			case "rpc":
-				a.RecoverRPC()
-			case "checkrunner":
-				a.RecoverCheckRunner()
-			case "command":
-				if cmd, ok := data["cmd"].(string); ok {
-					a.RecoverCMD(cmd)
-				}
-			}
+	case "loggedonuser":
+		payload = rmm.CheckInLoggedUser{
+			CheckIn: rmm.CheckIn{
+				Func:    "loggedonuser",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
+			Username: a.LoggedOnUser(),
 		}
-		// agent update
-		if version, ok := data["version"].(string); ok {
-			if inno, iok := data["inno"].(string); iok {
-				if url, uok := data["url"].(string); uok {
-					a.AgentUpdate(url, inno, version)
-				}
-			}
+	case "software":
+		payload = rmm.CheckInSW{
+			CheckIn: rmm.CheckIn{
+				Func:    "software",
+				Agentid: a.AgentID,
+				Version: a.Version,
+			},
+			InstalledSW: a.GetInstalledSoftware(),
 		}
 	}
-	a.Logger.Debugln("CheckIn end")
-}
-
-func (a *WindowsAgent) AgentStartup() {
-	url := a.Server + "/api/v3/checkin/"
-	a.Logger.Debugln(url)
-
-	payload := struct {
-		Agentid  string `json:"agent_id"`
-		Hostname string `json:"hostname"`
-	}{a.AgentID, a.Hostname}
-	a.Logger.Debugln(payload)
-
-	req := APIRequest{
-		URL:       url,
-		Headers:   a.Headers,
-		Method:    "POST",
-		Payload:   payload,
-		Timeout:   15,
-		LocalCert: a.DB.Cert,
-		Debug:     a.Debug,
-	}
-	a.Logger.Debugln(req)
-
-	r, err := req.MakeRequest()
-	if err != nil {
-		a.Logger.Debugln("Startup error:", err)
-		return
-	}
-
-	if r.IsError() {
-		a.Logger.Debugln("Startup response:", r.StatusCode())
-	}
-	a.Logger.Debugln("Startup:", r.String())
+	ret.Encode(payload)
+	nc.PublishRequest(a.AgentID, mode, resp)
 }
 
 func randRange(min, max int) int {

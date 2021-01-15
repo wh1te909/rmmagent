@@ -16,52 +16,8 @@ import (
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
+	rmm "github.com/wh1te909/rmmagent/shared"
 )
-
-type AssignedTask struct {
-	TaskPK  int  `json:"id"`
-	Enabled bool `json:"enabled"`
-}
-
-type Script struct {
-	Shell string `json:"shell"`
-	Code  string `json:"code"`
-}
-
-type CheckInfo struct {
-	AgentPK  int `json:"agent"`
-	Interval int `json:"check_interval"`
-}
-
-type Check struct {
-	Script           Script         `json:"script"`
-	AssignedTasks    []AssignedTask `json:"assigned_tasks"`
-	CheckPK          int            `json:"id"`
-	CheckType        string         `json:"check_type"`
-	Status           string         `json:"status"`
-	Threshold        int            `json:"threshold"`
-	Disk             string         `json:"disk"`
-	IP               string         `json:"ip"`
-	ScriptArgs       []string       `json:"script_args"`
-	Timeout          int            `json:"timeout"`
-	ServiceName      string         `json:"svc_name"`
-	PassStartPending bool           `json:"pass_if_start_pending"`
-	PassNotExist     bool           `json:"pass_if_svc_not_exist"`
-	RestartIfStopped bool           `json:"restart_if_stopped"`
-	LogName          string         `json:"log_name"`
-	EventID          int            `json:"event_id"`
-	EventIDWildcard  bool           `json:"event_id_is_wildcard"`
-	EventType        string         `json:"event_type"`
-	EventSource      string         `json:"event_source"`
-	EventMessage     string         `json:"event_message"`
-	FailWhen         string         `json:"fail_when"`
-	SearchLastDays   int            `json:"search_last_days"`
-}
-
-type AllChecks struct {
-	CheckInfo
-	Checks []Check
-}
 
 func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Infoln("Checkrunner service started.")
@@ -78,7 +34,7 @@ func (a *WindowsAgent) CheckRunner() {
 }
 
 func (a *WindowsAgent) RunChecks() (int, error) {
-	data := AllChecks{}
+	data := rmm.AllChecks{}
 	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.Server, a.AgentID)
 	req := APIRequest{
 		URL:       url,
@@ -110,44 +66,50 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 		switch check.CheckType {
 		case "diskspace":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
 				a.DiskCheck(c)
 			}(check, &wg)
 		case "cpuload":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
 				a.CPULoadCheck(c)
 			}(check, &wg)
 		case "memory":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
 				a.MemCheck(c)
 			}(check, &wg)
 		case "ping":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
 				a.PingCheck(c)
 			}(check, &wg)
 		case "script":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
 				a.ScriptCheck(c)
 			}(check, &wg)
 		case "winsvc":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
 				a.WinSvcCheck(c)
 			}(check, &wg)
 		case "eventlog":
 			wg.Add(1)
-			go func(c Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup) {
 				defer wg.Done()
+				time.Sleep(time.Duration(randRange(300, 2000)) * time.Millisecond)
 				a.EventLogCheck(c)
 			}(check, &wg)
 		default:
@@ -273,7 +235,7 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 }
 
 // ScriptCheck runs either bat, powershell or python script
-func (a *WindowsAgent) ScriptCheck(data Check) {
+func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
 	url := a.Server + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
@@ -305,7 +267,7 @@ func (a *WindowsAgent) ScriptCheck(data Check) {
 }
 
 // DiskCheck checks disk usage
-func (a *WindowsAgent) DiskCheck(data Check) {
+func (a *WindowsAgent) DiskCheck(data rmm.Check) {
 	url := a.Server + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
@@ -344,7 +306,7 @@ func (a *WindowsAgent) DiskCheck(data Check) {
 }
 
 // CPULoadCheck checks avg cpu load
-func (a *WindowsAgent) CPULoadCheck(data Check) {
+func (a *WindowsAgent) CPULoadCheck(data rmm.Check) {
 	percent, err := cpu.Percent(10*time.Second, false)
 	if err != nil {
 		a.Logger.Debugln("CPU Check:", err)
@@ -376,7 +338,7 @@ func (a *WindowsAgent) CPULoadCheck(data Check) {
 }
 
 // MemCheck checks mem percentage
-func (a *WindowsAgent) MemCheck(data Check) {
+func (a *WindowsAgent) MemCheck(data rmm.Check) {
 	host, _ := ps.Host()
 	mem, _ := host.Memory()
 	percent := (float64(mem.Used) / float64(mem.Total)) * 100
@@ -405,7 +367,7 @@ func (a *WindowsAgent) MemCheck(data Check) {
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
-func (a *WindowsAgent) EventLogCheck(data Check) {
+func (a *WindowsAgent) EventLogCheck(data rmm.Check) {
 	evtLog := a.GetEventLog(data.LogName, data.SearchLastDays)
 
 	url := a.Server + "/api/v3/checkrunner/"
@@ -432,7 +394,7 @@ func (a *WindowsAgent) EventLogCheck(data Check) {
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
-func (a *WindowsAgent) PingCheck(data Check) {
+func (a *WindowsAgent) PingCheck(data rmm.Check) {
 	cmdArgs := []string{data.IP}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(90)*time.Second)
 	defer cancel()
@@ -489,7 +451,7 @@ func (a *WindowsAgent) PingCheck(data Check) {
 
 }
 
-func (a *WindowsAgent) WinSvcCheck(data Check) {
+func (a *WindowsAgent) WinSvcCheck(data rmm.Check) {
 	var status string
 	exists := true
 	url := a.Server + "/api/v3/checkrunner/"
@@ -524,7 +486,7 @@ func (a *WindowsAgent) WinSvcCheck(data Check) {
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
-func (a *WindowsAgent) handleAssignedTasks(status string, tasks []AssignedTask) {
+func (a *WindowsAgent) handleAssignedTasks(status string, tasks []rmm.AssignedTask) {
 	if len(tasks) > 0 && DjangoStringResp(status) == "failing" {
 		var wg sync.WaitGroup
 		for _, t := range tasks {

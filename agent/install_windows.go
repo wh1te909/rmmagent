@@ -258,48 +258,31 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// set new headers, no longer knox auth...use agent auth
 	rClient.SetHeaders(a.Headers)
 
-	a.SysInfo("all")
-
 	// send wmi sysinfo
 	a.Logger.Debugln("Getting sysinfo with WMI")
 	a.GetWMI()
 
-	// send software list
-	a.Logger.Debugln("Getting software list")
-	a.SendSoftware()
-
-	// create mesh watchdog
-	a.Logger.Debugln("Creating mesh watchdog scheduled task")
-	a.CreateInternalTask("TacticalRMM_fixmesh", "-m fixmesh", "60", 10)
-
 	a.Logger.Infoln("Installing services...")
 
-	rpcCommands := [5][]string{
-		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
-		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
-		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
-		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
-		{"start", "tacticalrpc"},
-	}
-	for _, s := range rpcCommands {
-		a.Logger.Debugln(a.Nssm, s)
-		_, _ = CMD(a.Nssm, s, 25, false)
-	}
-	time.Sleep(1 * time.Second)
-
-	svcCommands := [10][]string{
+	svcCommands := [15][]string{
 		// winagentsvc
 		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
 		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "AppRestartDelay", "5000"},
 		{"start", "tacticalagent"},
-		//checkrunner
+		// checkrunner
 		{"install", "checkrunner", a.EXE, "-m", "checkrunner"},
 		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
 		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
 		{"set", "checkrunner", "AppRestartDelay", "5000"},
 		{"start", "checkrunner"},
+		// tacticalrpc
+		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
+		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
+		{"start", "tacticalrpc"},
 	}
 
 	for _, s := range svcCommands {

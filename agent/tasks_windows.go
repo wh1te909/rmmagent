@@ -9,18 +9,11 @@ import (
 	"time"
 
 	"github.com/capnspacehook/taskmaster"
+	rmm "github.com/wh1te909/rmmagent/shared"
 )
 
-type AutomatedTask struct {
-	ID         int      `json:"id"`
-	TaskScript Script   `json:"script"`
-	Timeout    int      `json:"timeout"`
-	Enabled    bool     `json:"enabled"`
-	Args       []string `json:"script_args"`
-}
-
 func (a *WindowsAgent) RunTask(id int) error {
-	data := AutomatedTask{}
+	data := rmm.AutomatedTask{}
 	url := fmt.Sprintf("%s/api/v3/%d/%s/taskrunner/", a.Server, id, a.AgentID)
 	r := APIRequest{
 		URL:       url,

@@ -13,21 +13,20 @@ import (
 )
 
 type NatsMsg struct {
-	Func          string            `json:"func"`
-	Timeout       int               `json:"timeout"`
-	Data          map[string]string `json:"payload"`
-	ScriptArgs    []string          `json:"script_args"`
-	ProcPID       int32             `json:"procpid"`
-	TaskPK        int               `json:"taskpk"`
-	ScheduledTask SchedTask         `json:"schedtaskpayload"`
+	Func            string            `json:"func"`
+	Timeout         int               `json:"timeout"`
+	Data            map[string]string `json:"payload"`
+	ScriptArgs      []string          `json:"script_args"`
+	ProcPID         int32             `json:"procpid"`
+	TaskPK          int               `json:"taskpk"`
+	ScheduledTask   SchedTask         `json:"schedtaskpayload"`
+	RecoveryCommand string            `json:"recoverycommand"`
 }
 
 var runCheckLocker uint32
 
 func (a *WindowsAgent) RunRPC() {
 	a.Logger.Infoln("RPC service started")
-	a.Logger.Debugln("Sleeping for 15 seconds")
-	time.Sleep(15 * time.Second)
 
 	opts := []nats.Option{nats.Name("TacticalRMM"), nats.UserInfo(a.AgentID, a.Token)}
 	opts = setupConnOptions(opts)
@@ -240,7 +239,7 @@ func (a *WindowsAgent) RunRPC() {
 				switch p.Data["mode"] {
 				case "mesh":
 					a.Logger.Debugln("Recovering mesh")
-					a.RecoverMesh()
+					a.RecoverMesh(nc)
 				case "salt":
 					a.Logger.Debugln("Recovering salt")
 					a.RecoverSalt()
@@ -254,6 +253,15 @@ func (a *WindowsAgent) RunRPC() {
 
 				ret.Encode("ok")
 				msg.Respond(resp)
+			}(payload)
+
+		case "recoverycmd":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode("ok")
+				msg.Respond(resp)
+				a.RecoverCMD(p.RecoveryCommand)
 			}(payload)
 
 		case "softwarelist":
@@ -281,6 +289,11 @@ func (a *WindowsAgent) RunRPC() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				a.Logger.Debugln("Getting sysinfo with WMI")
+				modes := []string{"osinfo", "publicip", "disks"}
+				for _, m := range modes {
+					a.CheckIn(nc, m)
+					time.Sleep(200 * time.Millisecond)
+				}
 				a.GetWMI()
 				ret.Encode("ok")
 				msg.Respond(resp)
@@ -297,10 +310,7 @@ func (a *WindowsAgent) RunRPC() {
 				} else {
 					a.Logger.Debugln("Running checks")
 					defer atomic.StoreUint32(&runCheckLocker, 0)
-					_, cerr := CMD(a.EXE, []string{"-m", "runchecks"}, 3600, false)
-					if cerr != nil {
-						a.Logger.Debugln(cerr)
-					}
+					a.RunChecks()
 				}
 			}()
 
@@ -309,24 +319,6 @@ func (a *WindowsAgent) RunRPC() {
 				a.Logger.Debugln("Running task")
 				a.RunTask(p.TaskPK)
 			}(payload)
-
-		case "checkin":
-			go func() {
-				a.CheckIn()
-			}()
-
-		case "startup":
-			go func() {
-				a.AgentStartup()
-			}()
-
-		case "checkinfull":
-			go func() {
-				_, cerr := CMD(a.EXE, []string{"-m", "checkinfull"}, 120, false)
-				if cerr != nil {
-					a.Logger.Debugln(cerr)
-				}
-			}()
 
 		case "publicip":
 			go func() {
@@ -380,5 +372,6 @@ func setupConnOptions(opts []nats.Option) []nats.Option {
 	opts = append(opts, nats.ReconnectWait(time.Second*5))
 	opts = append(opts, nats.RetryOnFailedConnect(true))
 	opts = append(opts, nats.MaxReconnects(-1))
+	opts = append(opts, nats.ReconnectBufSize(-1))
 	return opts
 }

@@ -4,18 +4,8 @@ import (
 	"strings"
 
 	wapi "github.com/iamacarpet/go-win64api"
+	rmm "github.com/wh1te909/rmmagent/shared"
 )
-
-type SoftwareList struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Publisher   string `json:"publisher"`
-	InstallDate string `json:"install_date"`
-	Size        string `json:"size"`
-	Source      string `json:"source"`
-	Location    string `json:"location"`
-	Uninstall   string `json:"uninstall"`
-}
 
 // GetProgramVersion loops through the registry for software
 // and if found, returns its version
@@ -36,8 +26,8 @@ func (a *WindowsAgent) GetProgramVersion(name string) string {
 	return "0.0.0"
 }
 
-func (a *WindowsAgent) GetInstalledSoftware() []SoftwareList {
-	ret := make([]SoftwareList, 0)
+func (a *WindowsAgent) GetInstalledSoftware() []rmm.SoftwareList {
+	ret := make([]rmm.SoftwareList, 0)
 
 	sw, err := wapi.InstalledSoftwareList()
 	if err != nil {
@@ -45,7 +35,7 @@ func (a *WindowsAgent) GetInstalledSoftware() []SoftwareList {
 	}
 
 	for _, s := range sw {
-		ret = append(ret, SoftwareList{
+		ret = append(ret, rmm.SoftwareList{
 			Name:        s.Name(),
 			Version:     s.Version(),
 			Publisher:   s.Publisher,

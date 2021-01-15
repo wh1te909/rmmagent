@@ -3,22 +3,10 @@ package agent
 import (
 	"time"
 
+	rmm "github.com/wh1te909/rmmagent/shared"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
-
-// WindowsService holds windows service info
-type WindowsService struct {
-	Name             string `json:"name"`
-	Status           string `json:"status"`
-	DisplayName      string `json:"display_name"`
-	BinPath          string `json:"binpath"`
-	Description      string `json:"description"`
-	Username         string `json:"username"`
-	PID              uint32 `json:"pid"`
-	StartType        string `json:"start_type"`
-	DelayedAutoStart bool   `json:"autodelay"`
-}
 
 // WinSvcResp for sending service control status back to the rmm
 type WinSvcResp struct {
@@ -138,8 +126,8 @@ func (a *WindowsAgent) EditService(name, startupType string) WinSvcResp {
 	return WinSvcResp{Success: true, ErrorMsg: ""}
 }
 
-func (a *WindowsAgent) GetServiceDetail(name string) WindowsService {
-	ret := WindowsService{}
+func (a *WindowsAgent) GetServiceDetail(name string) rmm.WindowsService {
+	ret := rmm.WindowsService{}
 
 	conn, err := mgr.Connect()
 	if err != nil {
@@ -180,8 +168,8 @@ func (a *WindowsAgent) GetServiceDetail(name string) WindowsService {
 }
 
 // GetServices returns a list of windows services
-func (a *WindowsAgent) GetServices() []WindowsService {
-	ret := make([]WindowsService, 0)
+func (a *WindowsAgent) GetServices() []rmm.WindowsService {
+	ret := make([]rmm.WindowsService, 0)
 
 	conn, err := mgr.Connect()
 	if err != nil {
@@ -217,7 +205,7 @@ func (a *WindowsAgent) GetServices() []WindowsService {
 			continue
 		}
 
-		ret = append(ret, WindowsService{
+		ret = append(ret, rmm.WindowsService{
 			Name:             s,
 			Status:           serviceStatusText(uint32(q.State)),
 			DisplayName:      conf.DisplayName,
