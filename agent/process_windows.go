@@ -10,7 +10,7 @@ import (
 type ProcessMsg struct {
 	Name     string `json:"name"`
 	Pid      int    `json:"pid"`
-	Mem      string `json:"memory_percent"`
+	MemBytes uint64 `json:"membytes"`
 	Username string `json:"username"`
 	UID      int    `json:"id"`
 	CPU      string `json:"cpu_percent"`
@@ -40,7 +40,7 @@ func (a *WindowsAgent) GetProcsRPC() []ProcessMsg {
 		ret = append(ret, ProcessMsg{
 			Name:     p.Name,
 			Pid:      p.PID,
-			Mem:      ByteCountSI(m.Resident),
+			MemBytes: m.Resident,
 			Username: user,
 			UID:      i,
 			CPU:      fmt.Sprintf("%.1f", cpu),
