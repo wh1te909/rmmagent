@@ -14,6 +14,8 @@ import (
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
+	a.Logger.Debugln("Sleeping for 15 seconds")
+	time.Sleep(15 * time.Second)
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
 	opts := []nats.Option{

@@ -27,6 +27,8 @@ var runCheckLocker uint32
 
 func (a *WindowsAgent) RunRPC() {
 	a.Logger.Infoln("RPC service started")
+	a.Logger.Debugln("Sleeping for 15 seconds")
+	time.Sleep(15 * time.Second)
 
 	opts := []nats.Option{nats.Name("TacticalRMM"), nats.UserInfo(a.AgentID, a.Token)}
 	opts = setupConnOptions(opts)
