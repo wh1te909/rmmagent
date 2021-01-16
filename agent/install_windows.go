@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
+	nats "github.com/nats-io/nats.go"
 )
 
 type Installer struct {
@@ -261,6 +262,22 @@ func (a *WindowsAgent) Install(i *Installer) {
 	// send wmi sysinfo
 	a.Logger.Debugln("Getting sysinfo with WMI")
 	a.GetWMI()
+
+	// check in once
+	opts := a.setupNatsOptions()
+	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
+
+	nc, err := nats.Connect(server, opts...)
+	if err != nil {
+		a.Logger.Errorln(err)
+	} else {
+		startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
+		for _, s := range startup {
+			a.CheckIn(nc, s)
+			time.Sleep(200 * time.Millisecond)
+		}
+		nc.Close()
+	}
 
 	a.Logger.Infoln("Installing services...")
 

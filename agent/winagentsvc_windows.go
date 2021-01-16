@@ -27,7 +27,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 		os.Exit(1)
 	}
 
-	startup := []string{"hello", "osinfo", "winservices", "publicip", "disks", "loggedonuser", "software"}
+	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 	for _, s := range startup {
 		a.CheckIn(nc, s)
 		time.Sleep(600 * time.Millisecond)
