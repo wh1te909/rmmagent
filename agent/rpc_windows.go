@@ -30,9 +30,7 @@ func (a *WindowsAgent) RunRPC() {
 	a.Logger.Debugln("Sleeping for 15 seconds")
 	time.Sleep(15 * time.Second)
 
-	opts := []nats.Option{nats.Name("TacticalRMM"), nats.UserInfo(a.AgentID, a.Token)}
-	opts = setupConnOptions(opts)
-
+	opts := a.setupNatsOptions()
 	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
@@ -368,12 +366,4 @@ func (a *WindowsAgent) RunRPC() {
 	}
 
 	runtime.Goexit()
-}
-
-func setupConnOptions(opts []nats.Option) []nats.Option {
-	opts = append(opts, nats.ReconnectWait(time.Second*5))
-	opts = append(opts, nats.RetryOnFailedConnect(true))
-	opts = append(opts, nats.MaxReconnects(-1))
-	opts = append(opts, nats.ReconnectBufSize(-1))
-	return opts
 }

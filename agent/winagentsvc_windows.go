@@ -18,14 +18,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	time.Sleep(15 * time.Second)
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
-	opts := []nats.Option{
-		nats.Name("TacticalRMM"),
-		nats.UserInfo(a.AgentID, a.Token),
-		nats.ReconnectBufSize(-1),
-		nats.ReconnectWait(time.Second * 5),
-		nats.RetryOnFailedConnect(true),
-		nats.MaxReconnects(-1),
-	}
+	opts := a.setupNatsOptions()
 	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 
 	nc, err := nats.Connect(server, opts...)

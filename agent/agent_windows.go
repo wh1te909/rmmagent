@@ -728,6 +728,17 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	time.Sleep(1 * time.Second)
 }
 
+func (a *WindowsAgent) setupNatsOptions() []nats.Option {
+	opts := make([]nats.Option, 0)
+	opts = append(opts, nats.Name("TacticalRMM"))
+	opts = append(opts, nats.UserInfo(a.AgentID, a.Token))
+	opts = append(opts, nats.ReconnectWait(time.Second*5))
+	opts = append(opts, nats.RetryOnFailedConnect(true))
+	opts = append(opts, nats.MaxReconnects(-1))
+	opts = append(opts, nats.ReconnectBufSize(-1))
+	return opts
+}
+
 func (a *WindowsAgent) GetUninstallExe() string {
 	cderr := os.Chdir(a.ProgramDir)
 	if cderr == nil {
