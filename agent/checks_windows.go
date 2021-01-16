@@ -62,6 +62,9 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 	}
 
 	var wg sync.WaitGroup
+	eventLogChecks := make([]rmm.Check, 0)
+	winServiceChecks := make([]rmm.Check, 0)
+
 	for _, check := range data.Checks {
 		switch check.CheckType {
 		case "diskspace":
@@ -99,23 +102,31 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 				a.ScriptCheck(c)
 			}(check, &wg)
 		case "winsvc":
-			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
-				defer wg.Done()
-				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
-				a.WinSvcCheck(c)
-			}(check, &wg)
+			winServiceChecks = append(winServiceChecks, check)
 		case "eventlog":
-			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
-				defer wg.Done()
-				time.Sleep(time.Duration(randRange(300, 2000)) * time.Millisecond)
-				a.EventLogCheck(c)
-			}(check, &wg)
+			eventLogChecks = append(eventLogChecks, check)
 		default:
 			continue
 		}
 	}
+
+	go func(wg *sync.WaitGroup) {
+		for _, winSvcCheck := range winServiceChecks {
+			time.Sleep(200 * time.Millisecond)
+			wg.Add(1)
+			a.WinSvcCheck(winSvcCheck)
+			wg.Done()
+		}
+	}(&wg)
+
+	go func(wg *sync.WaitGroup) {
+		for _, evtCheck := range eventLogChecks {
+			wg.Add(1)
+			a.EventLogCheck(evtCheck)
+			wg.Done()
+		}
+	}(&wg)
+
 	wg.Wait()
 	return data.CheckInfo.Interval, nil
 }
