@@ -303,6 +303,11 @@ func (a *WindowsAgent) RunRPC() {
 				a.Logger.Debugln("Sending sysinfo and software")
 				a.Sync()
 			}()
+		case "wmi":
+			go func() {
+				a.Logger.Debugln("Sending WMI")
+				a.GetWMI()
+			}()
 		case "runchecks":
 			go func() {
 				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
