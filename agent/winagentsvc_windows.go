@@ -14,8 +14,9 @@ import (
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
-	a.Logger.Debugln("Sleeping for 15 seconds")
-	time.Sleep(15 * time.Second)
+	sleepDelay := randRange(14, 22)
+	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
+	time.Sleep(time.Duration(sleepDelay) * time.Second)
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
 	opts := a.setupNatsOptions()
@@ -30,18 +31,18 @@ func (a *WindowsAgent) WinAgentSvc() {
 	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 	for _, s := range startup {
 		a.CheckIn(nc, s)
-		time.Sleep(600 * time.Millisecond)
+		time.Sleep(time.Duration(randRange(300, 900)) * time.Millisecond)
 	}
 	a.SyncMeshNodeID(nc)
 
-	checkInTicker := time.NewTicker(time.Duration(randRange(30, 90)) * time.Second)
-	checkInOSTicker := time.NewTicker(5 * time.Minute)
-	checkInWinSvcTicker := time.NewTicker(15 * time.Minute)
-	checkInPubIPTicker := time.NewTicker(6 * time.Minute)
-	checkInDisksTicker := time.NewTicker(4 * time.Minute)
-	checkInLoggedUserTicker := time.NewTicker(17 * time.Minute)
-	checkInSWTicker := time.NewTicker(45 * time.Minute)
-	syncMeshTicker := time.NewTicker(50 * time.Minute)
+	checkInTicker := time.NewTicker(time.Duration(randRange(40, 110)) * time.Second)
+	checkInOSTicker := time.NewTicker(time.Duration(randRange(250, 450)) * time.Second)
+	checkInWinSvcTicker := time.NewTicker(time.Duration(randRange(700, 1000)) * time.Second)
+	checkInPubIPTicker := time.NewTicker(time.Duration(randRange(300, 500)) * time.Second)
+	checkInDisksTicker := time.NewTicker(time.Duration(randRange(200, 600)) * time.Second)
+	checkInLoggedUserTicker := time.NewTicker(time.Duration(randRange(850, 1400)) * time.Second)
+	checkInSWTicker := time.NewTicker(time.Duration(randRange(2400, 3000)) * time.Second)
+	syncMeshTicker := time.NewTicker(time.Duration(randRange(2400, 2900)) * time.Second)
 
 	for {
 		select {

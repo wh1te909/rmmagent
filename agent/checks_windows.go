@@ -21,8 +21,9 @@ import (
 
 func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Infoln("Checkrunner service started.")
-	a.Logger.Debugln("Sleeping for 15 seconds")
-	time.Sleep(15 * time.Second)
+	sleepDelay := randRange(14, 22)
+	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
+	time.Sleep(time.Duration(sleepDelay) * time.Second)
 	for {
 		interval, err := a.RunChecks()
 		if err != nil {

@@ -689,6 +689,7 @@ func (a *WindowsAgent) installerMsg(msg, alert string, silent bool) {
 }
 
 func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
+	time.Sleep(time.Duration(randRange(1, 15)) * time.Second)
 	a.CleanupAgentUpdates()
 	updater := filepath.Join(a.ProgramDir, inno)
 	a.Logger.Infof("Agent updating from %s to %s", a.Version, version)

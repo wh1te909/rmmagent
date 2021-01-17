@@ -23,13 +23,13 @@ type NatsMsg struct {
 	RecoveryCommand string            `json:"recoverycommand"`
 }
 
-var runCheckLocker uint32
+var (
+	runCheckLocker    uint32
+	agentUpdateLocker uint32
+)
 
 func (a *WindowsAgent) RunRPC() {
 	a.Logger.Infoln("RPC service started")
-	a.Logger.Debugln("Sleeping for 15 seconds")
-	time.Sleep(15 * time.Second)
-
 	opts := a.setupNatsOptions()
 	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
 	nc, err := nats.Connect(server, opts...)
@@ -342,12 +342,19 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				ret.Encode("ok")
-				msg.Respond(resp)
-				a.AgentUpdate(p.Data["url"], p.Data["inno"], p.Data["version"])
-				nc.Flush()
-				nc.Close()
-				os.Exit(0)
+				if !atomic.CompareAndSwapUint32(&agentUpdateLocker, 0, 1) {
+					a.Logger.Debugln("Agent update already running")
+					ret.Encode("updaterunning")
+					msg.Respond(resp)
+				} else {
+					ret.Encode("ok")
+					msg.Respond(resp)
+					a.AgentUpdate(p.Data["url"], p.Data["inno"], p.Data["version"])
+					atomic.StoreUint32(&agentUpdateLocker, 0)
+					nc.Flush()
+					nc.Close()
+					os.Exit(0)
+				}
 			}(payload)
 
 		case "uninstall":
