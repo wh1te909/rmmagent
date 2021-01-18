@@ -24,8 +24,9 @@ type NatsMsg struct {
 }
 
 var (
-	runCheckLocker    uint32
-	agentUpdateLocker uint32
+	runCheckLocker     uint32
+	agentUpdateLocker  uint32
+	getWinUpdateLocker uint32
 )
 
 func (a *WindowsAgent) RunRPC() {
@@ -337,7 +338,16 @@ func (a *WindowsAgent) RunRPC() {
 			go func() {
 				CMD(a.EXE, []string{"-m", "installsalt"}, 3600, true)
 			}()
-
+		case "getwinupdates":
+			go func() {
+				if !atomic.CompareAndSwapUint32(&getWinUpdateLocker, 0, 1) {
+					a.Logger.Debugln("Already checking for windows updates")
+				} else {
+					a.Logger.Debugln("Checking for windows updates")
+					defer atomic.StoreUint32(&getWinUpdateLocker, 0)
+					a.GetWinUpdates(nc)
+				}
+			}()
 		case "agentupdate":
 			go func(p *NatsMsg) {
 				var resp []byte

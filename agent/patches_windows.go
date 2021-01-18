@@ -3,6 +3,10 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+
+	nats "github.com/nats-io/nats.go"
+	"github.com/ugorji/go/codec"
+	rmm "github.com/wh1te909/rmmagent/shared"
 )
 
 type WindowsUpdate struct {
@@ -33,6 +37,20 @@ type SaltUpdateOutput struct {
 
 type LocalSaltUpdate struct {
 	Local SaltUpdateOutput `json:"local"`
+}
+
+func (a *WindowsAgent) GetWinUpdates(nc *nats.Conn) {
+	updates, err := WUAUpdates("IsInstalled=1 or IsInstalled=0 and Type='Software' and IsHidden=0")
+	if err != nil {
+		a.Logger.Errorln(err)
+		return
+	}
+
+	payload := rmm.WinUpdateResult{AgentID: a.AgentID, Updates: updates}
+	var resp []byte
+	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+	ret.Encode(payload)
+	nc.PublishRequest(a.AgentID, "getwinupdates", resp)
 }
 
 func (a *WindowsAgent) InstallPatches() {
