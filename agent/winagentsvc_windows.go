@@ -35,6 +35,9 @@ func (a *WindowsAgent) WinAgentSvc() {
 	}
 	a.SyncMeshNodeID(nc)
 
+	time.Sleep(time.Duration(randRange(2, 7)) * time.Second)
+	a.CheckIn(nc, "startup")
+
 	checkInTicker := time.NewTicker(time.Duration(randRange(40, 110)) * time.Second)
 	checkInOSTicker := time.NewTicker(time.Duration(randRange(250, 450)) * time.Second)
 	checkInWinSvcTicker := time.NewTicker(time.Duration(randRange(700, 1000)) * time.Second)
@@ -75,6 +78,12 @@ func (a *WindowsAgent) CheckIn(nc *nats.Conn, mode string) {
 	case "hello":
 		payload = rmm.CheckIn{
 			Func:    "hello",
+			Agentid: a.AgentID,
+			Version: a.Version,
+		}
+	case "startup":
+		payload = rmm.CheckIn{
+			Func:    "startup",
 			Agentid: a.AgentID,
 			Version: a.Version,
 		}
