@@ -33,6 +33,11 @@ type AgentNeedsReboot struct {
 	NeedsReboot bool   `json:"needs_reboot"`
 }
 
+type ChocoInstalled struct {
+	AgentID   string `json:"agent_id"`
+	Installed bool   `json:"installed"`
+}
+
 // WindowsService holds windows service info
 type WindowsService struct {
 	Name             string `json:"name"`

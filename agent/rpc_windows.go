@@ -13,15 +13,17 @@ import (
 )
 
 type NatsMsg struct {
-	Func            string            `json:"func"`
-	Timeout         int               `json:"timeout"`
-	Data            map[string]string `json:"payload"`
-	ScriptArgs      []string          `json:"script_args"`
-	ProcPID         int32             `json:"procpid"`
-	TaskPK          int               `json:"taskpk"`
-	ScheduledTask   SchedTask         `json:"schedtaskpayload"`
-	RecoveryCommand string            `json:"recoverycommand"`
-	UpdateGUIDs     []string          `json:"guids"`
+	Func             string            `json:"func"`
+	Timeout          int               `json:"timeout"`
+	Data             map[string]string `json:"payload"`
+	ScriptArgs       []string          `json:"script_args"`
+	ProcPID          int32             `json:"procpid"`
+	TaskPK           int               `json:"taskpk"`
+	ScheduledTask    SchedTask         `json:"schedtaskpayload"`
+	RecoveryCommand  string            `json:"recoverycommand"`
+	UpdateGUIDs      []string          `json:"guids"`
+	ChocoProgName    string            `json:"choco_prog_name"`
+	ChocoProgVersion string            `json:"choco_prog_ver"`
 }
 
 var (
@@ -340,6 +342,17 @@ func (a *WindowsAgent) RunRPC() {
 			go func() {
 				CMD(a.EXE, []string{"-m", "installsalt"}, 3600, true)
 			}()
+		case "installchoco":
+			go a.InstallChoco(nc)
+		case "installwithchoco":
+			go func(p *NatsMsg) {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				msg.Respond(resp)
+				out, _ := a.InstallWithChoco(p.ChocoProgName, p.ChocoProgVersion)
+				ret.Encode(out)
+				msg.Respond(resp)
+			}(payload)
 		case "getwinupdates":
 			go func() {
 				if !atomic.CompareAndSwapUint32(&getWinUpdateLocker, 0, 1) {
