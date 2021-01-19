@@ -5,9 +5,7 @@ package agent
 */
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"sync"
 
 	ole "github.com/go-ole/go-ole"
@@ -67,7 +65,7 @@ func NewUpdateSession() (*IUpdateSession, error) {
 }
 
 // InstallWUAUpdate install a WIndows update.
-func (s *IUpdateSession) InstallWUAUpdate(ctx context.Context, updt *IUpdate) error {
+func (s *IUpdateSession) InstallWUAUpdate(updt *IUpdate) error {
 	_, err := updt.GetProperty("Title")
 	if err != nil {
 		return fmt.Errorf(`updt.GetProperty("Title"): %v`, err)
@@ -459,7 +457,6 @@ func (s *IUpdateSession) GetWUAUpdateCollection(query string) (*IUpdateCollectio
 
 // SystemRebootRequired checks whether a system reboot is required.
 func (a *WindowsAgent) SystemRebootRequired() (bool, error) {
-	os.Executable()
 	// https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw#remarks
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager`, registry.QUERY_VALUE)
 	if err == nil {

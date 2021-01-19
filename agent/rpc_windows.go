@@ -21,12 +21,14 @@ type NatsMsg struct {
 	TaskPK          int               `json:"taskpk"`
 	ScheduledTask   SchedTask         `json:"schedtaskpayload"`
 	RecoveryCommand string            `json:"recoverycommand"`
+	UpdateGUIDs     []string          `json:"guids"`
 }
 
 var (
-	runCheckLocker     uint32
-	agentUpdateLocker  uint32
-	getWinUpdateLocker uint32
+	runCheckLocker         uint32
+	agentUpdateLocker      uint32
+	getWinUpdateLocker     uint32
+	installWinUpdateLocker uint32
 )
 
 func (a *WindowsAgent) RunRPC() {
@@ -348,6 +350,16 @@ func (a *WindowsAgent) RunRPC() {
 					a.GetWinUpdates(nc)
 				}
 			}()
+		case "installwinupdates":
+			go func(p *NatsMsg) {
+				if !atomic.CompareAndSwapUint32(&installWinUpdateLocker, 0, 1) {
+					a.Logger.Debugln("Already installing windows updates")
+				} else {
+					a.Logger.Debugln("Installing windows updates", p.UpdateGUIDs)
+					defer atomic.StoreUint32(&installWinUpdateLocker, 0)
+					a.InstallUpdates(nc, p.UpdateGUIDs)
+				}
+			}(payload)
 		case "agentupdate":
 			go func(p *NatsMsg) {
 				var resp []byte

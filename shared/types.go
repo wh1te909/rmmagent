@@ -22,6 +22,17 @@ type WUAPackage struct {
 	Downloaded     bool     `json:"downloaded"`
 }
 
+type WinUpdateInstallResult struct {
+	AgentID  string `json:"agent_id"`
+	UpdateID string `json:"guid"`
+	Success  bool   `json:"success"`
+}
+
+type AgentNeedsReboot struct {
+	AgentID     string `json:"agent_id"`
+	NeedsReboot bool   `json:"needs_reboot"`
+}
+
 // WindowsService holds windows service info
 type WindowsService struct {
 	Name             string `json:"name"`
