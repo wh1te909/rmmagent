@@ -79,8 +79,6 @@ func main() {
 		a.GetWMI()
 	case "recoversalt":
 		a.RecoverSalt()
-	case "winupdater":
-		a.InstallPatches()
 	case "cleanup":
 		a.UninstallCleanup()
 	case "installsalt":
