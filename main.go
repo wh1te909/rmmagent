@@ -58,14 +58,10 @@ func main() {
 	a := *agent.New(log, version)
 
 	switch *mode {
-	case "rpc":
-		a.RunRPC()
 	case "pk":
 		fmt.Println(a.AgentPK)
-	case "checkrunner":
-		a.CheckRunner()
 	case "winagentsvc":
-		a.WinAgentSvc()
+		a.RunAsService()
 	case "runchecks":
 		a.RunChecks()
 	case "sysinfo":

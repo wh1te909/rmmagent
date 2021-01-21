@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
@@ -11,14 +12,8 @@ import (
 	rmm "github.com/wh1te909/rmmagent/shared"
 )
 
-// WinAgentSvc tacticalagent windows nssm service
-func (a *WindowsAgent) WinAgentSvc() {
-	a.Logger.Infoln("Agent service started")
-	sleepDelay := randRange(14, 22)
-	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
-	time.Sleep(time.Duration(sleepDelay) * time.Second)
-	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
-
+func (a *WindowsAgent) RunAsService() {
+	var wg sync.WaitGroup
 	opts := a.setupNatsOptions()
 	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
 
@@ -27,6 +22,22 @@ func (a *WindowsAgent) WinAgentSvc() {
 		a.Logger.Errorln(err)
 		os.Exit(1)
 	}
+	wg.Add(1)
+	go a.RunRPC(nc)
+	go a.CheckRunner()
+	go a.WinAgentSvc(nc)
+	wg.Wait()
+
+}
+
+// WinAgentSvc tacticalagent windows nssm service
+func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
+	a.Logger.Infoln("Agent service started")
+	sleepDelay := randRange(14, 22)
+	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
+	time.Sleep(time.Duration(sleepDelay) * time.Second)
+
+	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
 	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 	for _, s := range startup {

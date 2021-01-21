@@ -18,55 +18,11 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-// APIRequest struct
-type APIRequest struct {
-	URL       string
-	Method    string
-	Payload   interface{}
-	Headers   map[string]string
-	Timeout   time.Duration
-	LocalCert string
-	Debug     bool
-}
-
-// MakeRequest creates an api request to the RMM
-func (r *APIRequest) MakeRequest() (*resty.Response, error) {
-	client := resty.New()
-	client.SetCloseConnection(true)
-	client.SetHeaders(r.Headers)
-	client.SetTimeout(r.Timeout * time.Second)
-	client.SetDebug(r.Debug)
-
-	if len(r.LocalCert) > 0 {
-		client.SetRootCertificate(r.LocalCert)
-	}
-
-	var resp *resty.Response
-	var err error
-
-	switch r.Method {
-	case "GET":
-		resp, err = client.R().Get(r.URL)
-	case "POST":
-		resp, err = client.R().SetBody(r.Payload).Post(r.URL)
-	case "PATCH":
-		resp, err = client.R().SetBody(r.Payload).Patch(r.URL)
-	case "PUT":
-		resp, err = client.R().SetBody(r.Payload).Put(r.URL)
-	}
-
-	if err != nil {
-		return &resty.Response{}, err
-	}
-	return resp, nil
-}
-
 // PublicIP returns the agent's public ip
 // Tries 3 times before giving up
 func (a *WindowsAgent) PublicIP() string {
 	a.Logger.Debugln("PublicIP start")
 	client := resty.New()
-	client.SetCloseConnection(true)
 	client.SetTimeout(7 * time.Second)
 	urls := []string{"https://icanhazip.xlawgaming.com/", "https://icanhazip.com", "https://ifconfig.co/ip"}
 

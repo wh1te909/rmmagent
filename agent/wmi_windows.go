@@ -552,20 +552,9 @@ func (a *WindowsAgent) GetWMI() {
 	wmiInfo["cpu"] = cpu
 	wmiInfo["usb"] = usb
 
-	url := a.BaseURL + "/api/v3/sysinfo/"
 	payload := map[string]interface{}{"agent_id": a.AgentID, "sysinfo": wmiInfo}
 
-	req := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Payload:   payload,
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	_, rerr := req.MakeRequest()
+	_, rerr := a.rClient.R().SetBody(payload).Patch("/api/v3/sysinfo/")
 	if rerr != nil {
 		a.Logger.Debugln(rerr)
 	}

@@ -284,25 +284,13 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	a.Logger.Infoln("Installing services...")
 
-	svcCommands := [15][]string{
+	svcCommands := [5][]string{
 		// winagentsvc
-		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
+		{"install", "tacticalagent", a.EXE, "-m", "svc"},
 		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "AppRestartDelay", "5000"},
 		{"start", "tacticalagent"},
-		// checkrunner
-		{"install", "checkrunner", a.EXE, "-m", "checkrunner"},
-		{"set", "checkrunner", "DisplayName", "Tactical RMM Check Runner"},
-		{"set", "checkrunner", "Description", "Tactical RMM Check Runner"},
-		{"set", "checkrunner", "AppRestartDelay", "5000"},
-		{"start", "checkrunner"},
-		// tacticalrpc
-		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
-		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
-		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
-		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
-		{"start", "tacticalrpc"},
 	}
 
 	for _, s := range svcCommands {
