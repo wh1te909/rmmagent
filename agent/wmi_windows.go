@@ -552,7 +552,7 @@ func (a *WindowsAgent) GetWMI() {
 	wmiInfo["cpu"] = cpu
 	wmiInfo["usb"] = usb
 
-	url := a.Server + "/api/v3/sysinfo/"
+	url := a.BaseURL + "/api/v3/sysinfo/"
 	payload := map[string]interface{}{"agent_id": a.AgentID, "sysinfo": wmiInfo}
 
 	req := APIRequest{
@@ -561,7 +561,7 @@ func (a *WindowsAgent) GetWMI() {
 		Payload:   payload,
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 

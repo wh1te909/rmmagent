@@ -20,7 +20,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
 	opts := a.setupNatsOptions()
-	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
+	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
 
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
@@ -34,6 +34,7 @@ func (a *WindowsAgent) WinAgentSvc() {
 		time.Sleep(time.Duration(randRange(300, 900)) * time.Millisecond)
 	}
 	a.SyncMeshNodeID(nc)
+	go a.GetPython(false)
 
 	time.Sleep(time.Duration(randRange(2, 7)) * time.Second)
 	a.CheckIn(nc, "startup")

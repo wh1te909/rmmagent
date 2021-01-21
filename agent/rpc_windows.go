@@ -36,7 +36,7 @@ var (
 func (a *WindowsAgent) RunRPC() {
 	a.Logger.Infoln("RPC service started")
 	opts := a.setupNatsOptions()
-	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
+	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
 		a.Logger.Fatalln(err)
@@ -211,9 +211,15 @@ func (a *WindowsAgent) RunRPC() {
 		case "runscript":
 			go func(p *NatsMsg) {
 				var resp []byte
+				var retData string
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				out, err, _, _ := a.RunScript(p.Data["code"], p.Data["shell"], p.ScriptArgs, p.Timeout)
-				retData := out + err
+				stdout, stderr, _, err := a.RunScript(p.Data["code"], p.Data["shell"], p.ScriptArgs, p.Timeout)
+				if err != nil {
+					a.Logger.Debugln(err)
+					retData = err.Error()
+				} else {
+					retData = stdout + stderr
+				}
 				a.Logger.Debugln(retData)
 				ret.Encode(retData)
 				msg.Respond(resp)
@@ -336,11 +342,6 @@ func (a *WindowsAgent) RunRPC() {
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				ret.Encode(a.PublicIP())
 				msg.Respond(resp)
-			}()
-
-		case "installsalt":
-			go func() {
-				CMD(a.EXE, []string{"-m", "installsalt"}, 3600, true)
 			}()
 		case "installchoco":
 			go a.InstallChoco(nc)

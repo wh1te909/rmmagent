@@ -1,19 +1,21 @@
 package agent
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 	nats "github.com/nats-io/nats.go"
+	"golang.org/x/sys/windows/registry"
 )
 
 type Installer struct {
@@ -31,8 +33,47 @@ type Installer struct {
 	Cert        string
 	Timeout     time.Duration
 	SaltMaster  string
-	NoSalt      bool
 	Silent      bool
+}
+
+func createRegKeys(baseurl, agentid, apiurl, token, agentpk, cert string) {
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`, registry.ALL_ACCESS)
+	if err != nil {
+		log.Fatalln("Error creating registry key:", err)
+	}
+	defer k.Close()
+
+	err = k.SetStringValue("BaseURL", baseurl)
+	if err != nil {
+		log.Fatalln("Error creating BaseURL registry key:", err)
+	}
+
+	err = k.SetStringValue("AgentID", agentid)
+	if err != nil {
+		log.Fatalln("Error creating AgentID registry key:", err)
+	}
+
+	err = k.SetStringValue("ApiURL", apiurl)
+	if err != nil {
+		log.Fatalln("Error creating ApiURL registry key:", err)
+	}
+
+	err = k.SetStringValue("Token", token)
+	if err != nil {
+		log.Fatalln("Error creating Token registry key:", err)
+	}
+
+	err = k.SetStringValue("AgentPK", agentpk)
+	if err != nil {
+		log.Fatalln("Error creating AgentPK registry key:", err)
+	}
+
+	if len(cert) > 0 {
+		err = k.SetStringValue("Cert", cert)
+		if err != nil {
+			log.Fatalln("Error creating Cert registry key:", err)
+		}
+	}
 }
 
 func (a *WindowsAgent) Install(i *Installer) {
@@ -214,45 +255,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Agent PK:", agentPK)
 	a.Logger.Debugln("Salt ID:", saltID)
 
-	// create the database
-	db, err := sql.Open("sqlite3", filepath.Join(a.ProgramDir, "agentdb.db"))
-	if err != nil {
-		a.installerMsg(err.Error(), "error", i.Silent)
-	}
-	defer db.Close()
-
-	sqlStmt := `
-	CREATE TABLE "agentstorage" ("id" INTEGER NOT NULL PRIMARY KEY, "server" VARCHAR(255) NOT NULL, "agentid" VARCHAR(255) NOT NULL, "mesh_node_id" VARCHAR(255) NOT NULL, "token" VARCHAR(255) NOT NULL, "agentpk" INTEGER NOT NULL, "salt_master" VARCHAR(255) NOT NULL, "salt_id" VARCHAR(255) NOT NULL, "cert" VARCHAR(255));
-	`
-
-	_, err = db.Exec(sqlStmt)
-	if err != nil {
-		a.installerMsg(err.Error(), "error", i.Silent)
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		a.installerMsg(err.Error(), "error", i.Silent)
-	}
-
-	stmt, err := tx.Prepare("insert into agentstorage(id, server, agentid, mesh_node_id, token, agentpk, salt_master, salt_id, cert) values(?, ?, ?, ?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		a.installerMsg(err.Error(), "error", i.Silent)
-	}
-	defer stmt.Close()
-
-	if len(i.Cert) > 0 {
-		_, err = stmt.Exec(1, baseURL, a.AgentID, meshNodeID, agentToken, agentPK, i.SaltMaster, saltID, i.Cert)
-	} else {
-		_, err = stmt.Exec(1, baseURL, a.AgentID, meshNodeID, agentToken, agentPK, i.SaltMaster, saltID, nil)
-	}
-
-	if err != nil {
-		a.installerMsg(err.Error(), "error", i.Silent)
-	}
-	tx.Commit()
-	db.Close()
-
+	createRegKeys(baseURL, a.AgentID, i.SaltMaster, agentToken, strconv.Itoa(agentPK), i.Cert)
 	// refresh our agent with new values
 	a = New(a.Logger, a.Version)
 
@@ -265,7 +268,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	// check in once
 	opts := a.setupNatsOptions()
-	server := fmt.Sprintf("tls://%s:4222", a.SaltMaster)
+	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
 
 	nc, err := nats.Connect(server, opts...)
 	if err != nil {
@@ -320,13 +323,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	if i.RDP {
 		a.Logger.Infoln("Enabling RDP...")
 		EnableRDP()
-	}
-
-	if !i.NoSalt {
-		_, err := rClient.R().Get(fmt.Sprintf("%s/api/v3/%s/installsalt/", baseURL, a.AgentID))
-		if err != nil {
-			a.Logger.Errorln("Install salt:", err)
-		}
 	}
 
 	a.installerMsg("Installation was successfull!\nAllow a few minutes for the agent to properly display in the RMM", "info", i.Silent)

@@ -36,13 +36,13 @@ func (a *WindowsAgent) CheckRunner() {
 
 func (a *WindowsAgent) RunChecks() (int, error) {
 	data := rmm.AllChecks{}
-	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.Server, a.AgentID)
+	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.BaseURL, a.AgentID)
 	req := APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -248,13 +248,13 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 
 // ScriptCheck runs either bat, powershell or python script
 func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   30,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -280,13 +280,13 @@ func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
 
 // DiskCheck checks disk usage
 func (a *WindowsAgent) DiskCheck(data rmm.Check) {
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -325,13 +325,13 @@ func (a *WindowsAgent) CPULoadCheck(data rmm.Check) {
 		return
 	}
 
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -355,13 +355,13 @@ func (a *WindowsAgent) MemCheck(data rmm.Check) {
 	mem, _ := host.Memory()
 	percent := (float64(mem.Used) / float64(mem.Total)) * 100
 
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -382,13 +382,13 @@ func (a *WindowsAgent) MemCheck(data rmm.Check) {
 func (a *WindowsAgent) EventLogCheck(data rmm.Check) {
 	evtLog := a.GetEventLog(data.LogName, data.SearchLastDays)
 
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   30,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -436,13 +436,13 @@ func (a *WindowsAgent) PingCheck(data rmm.Check) {
 		output = outb.String()
 	}
 
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -466,13 +466,13 @@ func (a *WindowsAgent) PingCheck(data rmm.Check) {
 func (a *WindowsAgent) WinSvcCheck(data rmm.Check) {
 	var status string
 	exists := true
-	url := a.Server + "/api/v3/checkrunner/"
+	url := a.BaseURL + "/api/v3/checkrunner/"
 	r := APIRequest{
 		URL:       url,
 		Method:    "PATCH",
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 

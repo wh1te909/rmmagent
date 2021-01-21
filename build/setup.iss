@@ -40,7 +40,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "C:\Users\Public\Documents\rmmagent\tacticalrmm.exe"; DestDir: "{app}"; Flags: ignoreversion;
 Source: "C:\Users\Public\Documents\rmmagent\build\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion;
-Source: "C:\Users\Public\Documents\rmmagent\build\saltcustom"; DestDir: "{app}"; Flags: ignoreversion;
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -57,12 +56,12 @@ Filename: "{app}\{#NSSM}"; Parameters: "stop tacticalrpc"; RunOnceId: "stoptacrp
 Filename: "{app}\{#NSSM}"; Parameters: "remove tacticalrpc confirm"; RunOnceId: "removetacrpc";
 Filename: "{app}\{#MyAppExeName}"; Parameters: "-m cleanup"; RunOnceId: "cleanuprm";
 Filename: "{cmd}"; Parameters: "/c taskkill /F /IM tacticalrmm.exe"; RunOnceId: "killtacrmm";
-Filename: "{#SALTUNINSTALL}"; Parameters: "/S"; RunOnceId: "saltrm";
+Filename: "{#SALTUNINSTALL}"; Parameters: "/S"; RunOnceId: "saltrm"; Check: FileExists(ExpandConstant('{sd}\salt\uninst.exe'));
 Filename: "{app}\{#MESHEXE}"; Parameters: "-fulluninstall"; RunOnceId: "meshrm";
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}";
-Type: filesandordirs; Name: "{#SALTDIR}";
+Type: filesandordirs; Name: "{#SALTDIR}"; Check: DirExists(ExpandConstant('{sd}\salt'));
 Type: filesandordirs; Name: "{#MESHDIR}";
 
 [Code]

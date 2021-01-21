@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,8 +37,14 @@ var (
 
 // WindowsAgent struct
 type WindowsAgent struct {
-	DB
-	Host
+	Hostname      string
+	Arch          string
+	AgentID       string
+	BaseURL       string
+	ApiURL        string
+	Token         string
+	AgentPK       int
+	Cert          string
 	ProgramDir    string
 	EXE           string
 	SystemDrive   string
@@ -63,40 +70,76 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	exe := filepath.Join(pd, "tacticalrmm.exe")
 	dbFile := filepath.Join(pd, "agentdb.db")
 	sd := os.Getenv("SystemDrive")
-	pybin := filepath.Join(sd, "\\salt", "bin", "python.exe")
+	pybin := filepath.Join(pd, "py3", "python.exe")
 	sc := filepath.Join(sd, "\\salt\\salt-call.bat")
-	nssm, mesh, saltexe, saltinstaller := ArchInfo(pd)
-	db := LoadDB(dbFile, logger)
+	nssm, mesh := ArchInfo(pd)
+
+	if FileExists(dbFile) {
+		migrateDBToReg(dbFile, logger)
+	}
+
+	var (
+		baseurl string
+		agentid string
+		apiurl  string
+		token   string
+		agentpk string
+		pk      int
+		cert    string
+	)
+
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`, registry.ALL_ACCESS)
+	if err == nil {
+		baseurl, _, err = k.GetStringValue("BaseURL")
+		if err != nil {
+			logger.Fatalln("Unable to get BaseURL:", err)
+		}
+
+		agentid, _, err = k.GetStringValue("AgentID")
+		if err != nil {
+			logger.Fatalln("Unable to get AgentID:", err)
+		}
+
+		apiurl, _, err = k.GetStringValue("ApiURL")
+		if err != nil {
+			logger.Fatalln("Unable to get ApiURL:", err)
+		}
+
+		token, _, err = k.GetStringValue("Token")
+		if err != nil {
+			logger.Fatalln("Unable to get Token:", err)
+		}
+
+		agentpk, _, err = k.GetStringValue("AgentPK")
+		if err != nil {
+			logger.Fatalln("Unable to get AgentPK:", err)
+		}
+
+		pk, _ = strconv.Atoi(agentpk)
+
+		cert, _, _ = k.GetStringValue("Cert")
+	}
 
 	headers := make(map[string]string)
-	if len(db.Token) > 0 {
+	if len(token) > 0 {
 		headers["Content-Type"] = "application/json"
-		headers["Authorization"] = fmt.Sprintf("Token %s", db.Token)
+		headers["Authorization"] = fmt.Sprintf("Token %s", token)
 	}
 
 	return &WindowsAgent{
-		DB: DB{
-			db.Server,
-			db.AgentID,
-			db.MeshNodeID,
-			db.Token,
-			db.AgentPK,
-			db.SaltMaster,
-			db.SaltID,
-			db.Cert,
-		},
-		Host: Host{
-			Hostname: info.Hostname,
-			Arch:     info.Architecture,
-			Timezone: info.Timezone,
-		},
+		Hostname:      info.Hostname,
+		Arch:          info.Architecture,
+		BaseURL:       baseurl,
+		AgentID:       agentid,
+		ApiURL:        apiurl,
+		Token:         token,
+		AgentPK:       pk,
+		Cert:          cert,
 		ProgramDir:    pd,
 		EXE:           exe,
 		SystemDrive:   sd,
 		SaltCall:      sc,
 		Nssm:          nssm,
-		SaltMinion:    saltexe,
-		SaltInstaller: saltinstaller,
 		MeshInstaller: mesh,
 		MeshSystemEXE: filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe"),
 		MeshSVC:       "mesh agent",
@@ -108,13 +151,13 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	}
 }
 
-// LoadDB loads database info called during agent init
-func LoadDB(file string, logger *logrus.Logger) *DB {
-	if !FileExists(file) {
-		return &DB{}
+func migrateDBToReg(dbFile string, logger *logrus.Logger) {
+	_, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`, registry.ALL_ACCESS)
+	if err == nil {
+		return
 	}
 
-	db, err := sql.Open("sqlite3", file)
+	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
 		logger.Fatalln(err)
 	}
@@ -155,23 +198,18 @@ func LoadDB(file string, logger *logrus.Logger) *DB {
 		logger.Fatalln(err)
 	}
 
-	return &DB{server, agentid, meshid, token, pk, saltmaster, saltid, ret}
+	createRegKeys(server, agentid, saltmaster, token, strconv.Itoa(int(pk)), ret)
 }
 
 // ArchInfo returns arch specific filenames and urls
-func ArchInfo(programDir string) (nssm, mesh, saltexe, saltinstaller string) {
-	baseURL := "https://github.com/wh1te909/winagent/raw/master/bin/"
+func ArchInfo(programDir string) (nssm, mesh string) {
 	switch runtime.GOARCH {
 	case "amd64":
 		nssm = filepath.Join(programDir, "nssm.exe")
 		mesh = "meshagent.exe"
-		saltexe = baseURL + "salt-minion-setup.exe"
-		saltinstaller = "salt-minion-setup.exe"
 	case "386":
 		nssm = filepath.Join(programDir, "nssm-x86.exe")
 		mesh = "meshagent-x86.exe"
-		saltexe = baseURL + "salt-minion-setup-x86.exe"
-		saltinstaller = "salt-minion-setup-x86.exe"
 	}
 	return
 }
@@ -599,7 +637,7 @@ func (a *WindowsAgent) SendSoftware() {
 	sw := a.GetInstalledSoftware()
 	a.Logger.Debugln(sw)
 
-	url := a.Server + "/api/v3/software/"
+	url := a.BaseURL + "/api/v3/software/"
 	payload := map[string]interface{}{"agent_id": a.AgentID, "software": sw}
 
 	req := APIRequest{
@@ -608,7 +646,7 @@ func (a *WindowsAgent) SendSoftware() {
 		Payload:   payload,
 		Headers:   a.Headers,
 		Timeout:   15,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 
@@ -619,6 +657,7 @@ func (a *WindowsAgent) SendSoftware() {
 }
 
 func (a *WindowsAgent) UninstallCleanup() {
+	registry.DeleteKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`)
 	a.CleanupAgentUpdates()
 	CleanupSchedTasks()
 }
@@ -792,103 +831,32 @@ func (a *WindowsAgent) CleanupAgentUpdates() {
 	}
 }
 
-func (a *WindowsAgent) InstallSalt() {
-	rClient := resty.New()
-	rClient.SetCloseConnection(true)
-	rClient.SetTimeout(25 * time.Minute)
-	rClient.SetDebug(a.Debug)
-	rClient.SetHeaders(a.Headers)
+func (a *WindowsAgent) GetPython(force bool) {
+	if FileExists(a.PyBin) && !force {
+		return
+	}
 
-	saltMin := filepath.Join(a.ProgramDir, a.SaltInstaller)
-	a.Logger.Debugln("Downloading salt minion from:", a.SaltMinion)
-	r, err := rClient.R().SetOutput(saltMin).Get(a.SaltMinion)
+	pyZip := filepath.Join(a.ProgramDir, "py3.zip")
+	defer os.Remove(pyZip)
+
+	if force {
+		os.RemoveAll(filepath.Join(a.ProgramDir, "py3"))
+	}
+
+	rClient := resty.New()
+	rClient.SetTimeout(25 * time.Minute)
+
+	r, err := rClient.R().SetOutput(pyZip).Get("https://files.xlawgaming.com/py3.zip")
 	if err != nil {
-		a.Logger.Fatalln("Unable to download salt-minion:", err)
+		a.Logger.Errorln("Unable to download py3.zip:", err)
 	}
 	if r.IsError() {
-		a.Logger.Fatalln("Unable to download salt-minion. Status code", r.StatusCode())
+		a.Logger.Errorln("Unable to download py3.zip. Status code", r.StatusCode())
 	}
 
-	// install salt
-	a.Logger.Debugln("changing dir to", a.ProgramDir)
-	cdErr := os.Chdir(a.ProgramDir)
-	if cdErr != nil {
-		a.Logger.Fatalln(cdErr)
+	err = Unzip(pyZip, a.ProgramDir)
+	if err != nil {
+		a.Logger.Errorln(err)
 	}
-
-	saltInstallArgs := []string{
-		"/S",
-		"/custom-config=saltcustom",
-		fmt.Sprintf("/master=%s", a.DB.SaltMaster),
-		fmt.Sprintf("/minion-name=%s", a.DB.SaltID),
-		"/start-minion=1",
-	}
-
-	a.Logger.Debugln("Installing salt with:", a.SaltInstaller, saltInstallArgs)
-	_, saltErr := CMD(a.SaltInstaller, saltInstallArgs, 900, false)
-	if saltErr != nil {
-		a.Logger.Fatalln("Error installing salt-minion:", saltErr)
-	}
-	time.Sleep(10 * time.Second)
-
-	// accept the salt key on the rmm
-	a.Logger.Debugln("Registering salt with the RMM")
-	acceptPayload := map[string]string{"saltid": a.DB.SaltID, "agent_id": a.AgentID}
-	acceptAttempts := 0
-	acceptRetries := 10
-	for {
-		r, err := rClient.R().SetBody(acceptPayload).Post(fmt.Sprintf("%s/api/v3/saltminion/", a.DB.Server))
-		if err != nil {
-			a.Logger.Debugln(err)
-			acceptAttempts++
-			time.Sleep(5 * time.Second)
-		}
-
-		if r.StatusCode() != 200 {
-			a.Logger.Debugln(r.String())
-			acceptAttempts++
-			time.Sleep(5 * time.Second)
-		} else {
-			acceptAttempts = 0
-		}
-
-		if acceptAttempts == 0 {
-			a.Logger.Debugln(r.String())
-			break
-		} else if acceptAttempts >= acceptRetries {
-			a.Logger.Fatalln("Unable to register salt with the RMM.")
-		}
-	}
-
-	time.Sleep(10 * time.Second)
-
-	// sync salt modules
-	a.Logger.Debugln("Syncing salt modules")
-	syncPayload := map[string]string{"agent_id": a.AgentID}
-	syncAttempts := 0
-	syncRetries := 10
-	for {
-		r, err := rClient.R().SetBody(syncPayload).Patch(fmt.Sprintf("%s/api/v3/saltminion/", a.DB.Server))
-		if err != nil {
-			a.Logger.Debugln(err)
-			syncAttempts++
-			time.Sleep(5 * time.Second)
-		}
-
-		if r.StatusCode() != 200 {
-			a.Logger.Debugln(r.String())
-			syncAttempts++
-			time.Sleep(5 * time.Second)
-		} else {
-			syncAttempts = 0
-		}
-
-		if syncAttempts == 0 {
-			a.Logger.Debugln(r.String())
-			break
-		} else if syncAttempts >= syncRetries {
-			a.Logger.Errorln("Unable to register salt with the RMM.")
-		}
-	}
-	a.Logger.Infoln("Salt was installed.")
+	time.Sleep(1 * time.Second)
 }

@@ -14,13 +14,13 @@ import (
 
 func (a *WindowsAgent) RunTask(id int) error {
 	data := rmm.AutomatedTask{}
-	url := fmt.Sprintf("%s/api/v3/%d/%s/taskrunner/", a.Server, id, a.AgentID)
+	url := fmt.Sprintf("%s/api/v3/%d/%s/taskrunner/", a.BaseURL, id, a.AgentID)
 	r := APIRequest{
 		URL:       url,
 		Method:    "GET",
 		Headers:   a.Headers,
 		Timeout:   30,
-		LocalCert: a.DB.Cert,
+		LocalCert: a.Cert,
 		Debug:     a.Debug,
 	}
 

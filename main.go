@@ -34,7 +34,6 @@ func main() {
 	power := flag.Bool("power", false, "Disable sleep/hibernate")
 	rdp := flag.Bool("rdp", false, "Enable RDP")
 	ping := flag.Bool("ping", false, "Enable ping")
-	nosalt := flag.Bool("nosalt", false, "Does not install salt")
 	localMesh := flag.String("local-mesh", "", "Path to mesh executable")
 	cert := flag.String("cert", "", "Path to domain CA .pem")
 	updateurl := flag.String("updateurl", "", "Download link to updater")
@@ -81,8 +80,6 @@ func main() {
 		a.RecoverSalt()
 	case "cleanup":
 		a.UninstallCleanup()
-	case "installsalt":
-		a.InstallSalt()
 	case "publicip":
 		fmt.Println(a.PublicIP())
 	case "taskrunner":
@@ -115,7 +112,6 @@ func main() {
 			LocalMesh:   *localMesh,
 			Cert:        *cert,
 			Timeout:     *timeout,
-			NoSalt:      *nosalt,
 			Silent:      *silent,
 		})
 	default:
