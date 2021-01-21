@@ -50,8 +50,6 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [UninstallRun]
 Filename: "{app}\{#NSSM}"; Parameters: "stop tacticalagent"; RunOnceId: "stoptacagent";
 Filename: "{app}\{#NSSM}"; Parameters: "remove tacticalagent confirm"; RunOnceId: "removetacagent";
-Filename: "{app}\{#NSSM}"; Parameters: "stop checkrunner"; RunOnceId: "stopcheckrun";
-Filename: "{app}\{#NSSM}"; Parameters: "remove checkrunner confirm"; RunOnceId: "removecheckrun";
 Filename: "{app}\{#NSSM}"; Parameters: "stop tacticalrpc"; RunOnceId: "stoptacrpc";
 Filename: "{app}\{#NSSM}"; Parameters: "remove tacticalrpc confirm"; RunOnceId: "removetacrpc";
 Filename: "{app}\{#MyAppExeName}"; Parameters: "-m cleanup"; RunOnceId: "cleanuprm";
@@ -71,8 +69,6 @@ var
 begin
   Exec('cmd.exe', '/c net stop tacticalagent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop tacticalagent: ' + IntToStr(ResultCode));
-  Exec('cmd.exe', '/c net stop checkrunner', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Log('Stop checkrunner: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c net stop tacticalrpc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop tacticalrpc: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -87,8 +83,6 @@ var
 begin
   Exec('cmd.exe', '/c net start tacticalagent && ping 127.0.0.1 -n 3', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Start tacticalagent: ' + IntToStr(ResultCode));
-  Exec('cmd.exe', '/c net start checkrunner', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Log('Start checkrunner: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c net start tacticalrpc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Start tacticalrpc: ' + IntToStr(ResultCode));
 end;

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -48,10 +49,7 @@ type WindowsAgent struct {
 	ProgramDir    string
 	EXE           string
 	SystemDrive   string
-	SaltCall      string
 	Nssm          string
-	SaltMinion    string
-	SaltInstaller string
 	MeshInstaller string
 	MeshSystemEXE string
 	MeshSVC       string
@@ -71,9 +69,15 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	exe := filepath.Join(pd, "tacticalrmm.exe")
 	dbFile := filepath.Join(pd, "agentdb.db")
 	sd := os.Getenv("SystemDrive")
-	pybin := filepath.Join(pd, "py3", "python.exe")
-	sc := filepath.Join(sd, "\\salt\\salt-call.bat")
 	nssm, mesh := ArchInfo(pd)
+
+	var pybin string
+	switch runtime.GOARCH {
+	case "amd64":
+		pybin = filepath.Join(pd, "py38-x64", "python.exe")
+	case "386":
+		pybin = filepath.Join(pd, "py38-x32", "python.exe")
+	}
 
 	if FileExists(dbFile) {
 		migrateDBToReg(dbFile, logger)
@@ -149,7 +153,6 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		ProgramDir:    pd,
 		EXE:           exe,
 		SystemDrive:   sd,
-		SaltCall:      sc,
 		Nssm:          nssm,
 		MeshInstaller: mesh,
 		MeshSystemEXE: filepath.Join(os.Getenv("ProgramFiles"), "Mesh Agent", "MeshAgent.exe"),
@@ -438,6 +441,20 @@ func DisableSleepHibernate() {
 
 // LoggedOnUser returns the first logged on user it finds
 func (a *WindowsAgent) LoggedOnUser() string {
+	pyCode := `
+import psutil
+
+try:
+	print(psutil.users()[0].name, end='')
+except:
+	print("None", end='')
+
+`
+	user, err := a.RunPythonCode(pyCode, 5)
+	if err == nil {
+		return user
+	}
+
 	users, err := wapf.ListLoggedInUsers()
 	if err != nil {
 		a.Logger.Debugln("LoggedOnUser error", err)
@@ -518,17 +535,6 @@ func (a *WindowsAgent) RecoverTacticalAgent() {
 	_, _ = CMD(a.Nssm, []string{"stop", svc}, 120, false)
 	_, _ = CMD("ipconfig", []string{"/flushdns"}, 15, false)
 	a.Logger.Debugln("Tacticalagent recovery completed on", a.Hostname)
-}
-
-// RecoverCheckRunner should only be called from the rpc service
-func (a *WindowsAgent) RecoverCheckRunner() {
-	svc := "checkrunner"
-	a.Logger.Debugln("Attempting checkrunner recovery on", a.Hostname)
-	defer CMD(a.Nssm, []string{"start", svc}, 60, false)
-
-	_, _ = CMD(a.Nssm, []string{"stop", svc}, 120, false)
-	_, _ = CMD("ipconfig", []string{"/flushdns"}, 15, false)
-	a.Logger.Debugln("Checkrunner recovery completed on", a.Hostname)
 }
 
 //RecoverSalt recovers the salt minion
@@ -613,32 +619,6 @@ func (a *WindowsAgent) RecoverCMD(command string) {
 	cmd.Start()
 }
 
-func (a *WindowsAgent) LocalSaltCall(saltfunc string, args []string, timeout int) ([]byte, error) {
-	var outb, errb bytes.Buffer
-	var bytesErr []byte
-	largs := len(args)
-	saltArgs := make([]string, 0)
-
-	saltArgs = []string{saltfunc}
-
-	if largs > 0 {
-		saltArgs = append(saltArgs, args...)
-	}
-
-	saltArgs = append(saltArgs, "--local", fmt.Sprintf("--timeout=%d", timeout))
-
-	cmd := exec.Command(a.SaltCall, saltArgs...)
-	cmd.Stdout = &outb
-	cmd.Stderr = &errb
-
-	err := cmd.Run()
-	if err != nil {
-		a.Logger.Debugln(err)
-		return bytesErr, err
-	}
-	return outb.Bytes(), nil
-}
-
 func (a *WindowsAgent) Sync() {
 	a.GetWMI()
 	time.Sleep(1 * time.Second)
@@ -667,7 +647,7 @@ func (a *WindowsAgent) UninstallCleanup() {
 // Otherwise prints to the console
 func ShowStatus(version string) {
 	statusMap := make(map[string]string)
-	svcs := []string{"tacticalagent", "mesh agent"}
+	svcs := []string{"tacticalagent", "tacticalrpc", "mesh agent"}
 
 	for _, service := range svcs {
 		status, err := GetServiceStatus(service)
@@ -685,11 +665,12 @@ func ShowStatus(version string) {
 			w32.ShowWindow(window, w32.SW_HIDE)
 		}
 		var handle w32.HWND
-		msg := fmt.Sprintf("Agent: %s\n\nMesh Agent: %s", statusMap["tacticalagent"], statusMap["mesh agent"])
+		msg := fmt.Sprintf("Agent: %s\n\nRPC Service: %s\n\nMesh Agent: %s", statusMap["tacticalagent"], statusMap["tacticalrpc"], statusMap["mesh agent"])
 		w32.MessageBox(handle, msg, fmt.Sprintf("Tactical RMM v%s", version), w32.MB_OK|w32.MB_ICONINFORMATION)
 	} else {
 		fmt.Println("Tactical RMM Version", version)
 		fmt.Println("Agent:", statusMap["tacticalagent"])
+		fmt.Println("RPC Service:", statusMap["tacticalrpc"])
 		fmt.Println("Mesh Agent:", statusMap["mesh agent"])
 	}
 }
@@ -825,32 +806,104 @@ func (a *WindowsAgent) CleanupAgentUpdates() {
 	}
 }
 
+func (a *WindowsAgent) RunPythonCode(code string, timeout int) (string, error) {
+	content := []byte(code)
+	dir, err := ioutil.TempDir("", "tacticalpy")
+	if err != nil {
+		a.Logger.Debugln(err)
+		return "", err
+	}
+	defer os.RemoveAll(dir)
+
+	tmpfn, _ := ioutil.TempFile(dir, "*.py")
+	if _, err := tmpfn.Write(content); err != nil {
+		a.Logger.Debugln(err)
+		return "", err
+	}
+	if err := tmpfn.Close(); err != nil {
+		a.Logger.Debugln(err)
+		return "", err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	var outb, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, a.PyBin, tmpfn.Name())
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+
+	cmdErr := cmd.Run()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		a.Logger.Debugln("RunPythonCode:", ctx.Err())
+		return "", ctx.Err()
+	}
+
+	if cmdErr != nil {
+		a.Logger.Debugln("RunPythonCode:", cmdErr)
+		return "", cmdErr
+	}
+
+	if errb.String() != "" {
+		a.Logger.Debugln(errb.String())
+		return errb.String(), errors.New("RunPythonCode stderr")
+	}
+
+	return outb.String(), nil
+
+}
+
 func (a *WindowsAgent) GetPython(force bool) {
 	if FileExists(a.PyBin) && !force {
 		return
 	}
 
-	pyZip := filepath.Join(a.ProgramDir, "py3.zip")
+	var archZip string
+	var folder string
+	switch runtime.GOARCH {
+	case "amd64":
+		archZip = "py38-x64.zip"
+		folder = "py38-x64"
+	case "386":
+		archZip = "py38-x32.zip"
+		folder = "py38-x32"
+	}
+	pyFolder := filepath.Join(a.ProgramDir, folder)
+	pyZip := filepath.Join(a.ProgramDir, archZip)
+	fmt.Println(pyZip)
+	fmt.Println(a.PyBin)
 	defer os.Remove(pyZip)
 
 	if force {
-		os.RemoveAll(filepath.Join(a.ProgramDir, "py3"))
+		os.RemoveAll(pyFolder)
 	}
 
 	rClient := resty.New()
 	rClient.SetTimeout(25 * time.Minute)
 
-	r, err := rClient.R().SetOutput(pyZip).Get("https://files.xlawgaming.com/py3.zip")
+	r, err := rClient.R().SetOutput(pyZip).Get(fmt.Sprintf("https://files.xlawgaming.com/%s", archZip))
 	if err != nil {
 		a.Logger.Errorln("Unable to download py3.zip:", err)
+		return
 	}
 	if r.IsError() {
 		a.Logger.Errorln("Unable to download py3.zip. Status code", r.StatusCode())
+		return
 	}
 
 	err = Unzip(pyZip, a.ProgramDir)
 	if err != nil {
 		a.Logger.Errorln(err)
 	}
-	time.Sleep(1 * time.Second)
+}
+
+func (a *WindowsAgent) deleteOldTacticalServices() {
+	services := []string{"checkrunner"}
+	for _, svc := range services {
+		if serviceExists(svc) {
+			_, _ = CMD(a.Nssm, []string{"stop", svc}, 30, false)
+			_, _ = CMD(a.Nssm, []string{"remove", svc, "confirm"}, 30, false)
+		}
+	}
 }

@@ -117,9 +117,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	baseURL := u.Scheme + "://" + u.Host
 	a.Logger.Debugln("Base URL:", baseURL)
 
-	minion := filepath.Join(a.ProgramDir, a.SaltInstaller)
-	a.Logger.Debugln("Salt Minion:", minion)
-
 	iClient := resty.New()
 	iClient.SetCloseConnection(true)
 	iClient.SetTimeout(15 * time.Second)
@@ -284,9 +281,15 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	a.Logger.Infoln("Installing services...")
 
-	svcCommands := [5][]string{
+	svcCommands := [10][]string{
+		// tacticalrpc
+		{"install", "tacticalrpc", a.EXE, "-m", "rpc"},
+		{"set", "tacticalrpc", "DisplayName", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "Description", "Tactical RMM RPC Service"},
+		{"set", "tacticalrpc", "AppRestartDelay", "5000"},
+		{"start", "tacticalrpc"},
 		// winagentsvc
-		{"install", "tacticalagent", a.EXE, "-m", "svc"},
+		{"install", "tacticalagent", a.EXE, "-m", "winagentsvc"},
 		{"set", "tacticalagent", "DisplayName", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "Description", "Tactical RMM Agent"},
 		{"set", "tacticalagent", "AppRestartDelay", "5000"},

@@ -23,11 +23,9 @@ func (a *WindowsAgent) RunAsService() {
 		os.Exit(1)
 	}
 	wg.Add(1)
-	go a.RunRPC(nc)
-	go a.CheckRunner()
 	go a.WinAgentSvc(nc)
+	go a.CheckRunner()
 	wg.Wait()
-
 }
 
 // WinAgentSvc tacticalagent windows nssm service
@@ -37,6 +35,7 @@ func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
 	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
 	time.Sleep(time.Duration(sleepDelay) * time.Second)
 
+	a.deleteOldTacticalServices()
 	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
 
 	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}

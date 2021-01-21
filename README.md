@@ -21,7 +21,7 @@ go get github.com/tc-hib/goversioninfo/cmd/goversioninfo
 Read through the code / build files and change all references of ```Tactical RMM``` to ```Your Company RMM```
 
 Do __not__ change any of the following or this will break on the RMM end
-- The service names of the 3 windows services ```tacticalagent```, ```checkrunner``` and ```tacticalrpc```. You can however change the display names and descriptions of these.
+- The service names of the 2 windows services ```tacticalagent``` and ```tacticalrpc```. You can however change the display names and descriptions of these.
 - The ```TacticalAgent``` folder name in Program Files.
 - The actual binary name ```tacticalrmm.exe```. Change the ```FileDescription``` in ```versioninfo.json``` which is what will show up in task manager.
 
