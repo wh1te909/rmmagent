@@ -60,6 +60,7 @@ type WindowsAgent struct {
 	Logger        *logrus.Logger
 	Version       string
 	Debug         bool
+	rClient       *resty.Client
 }
 
 // New __init__
@@ -126,6 +127,16 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		headers["Authorization"] = fmt.Sprintf("Token %s", token)
 	}
 
+	restyC := resty.New()
+	restyC.SetHostURL(baseurl)
+	restyC.SetCloseConnection(true)
+	restyC.SetHeaders(headers)
+	restyC.SetTimeout(15 * time.Second)
+	restyC.SetDebug(logger.IsLevelEnabled(logrus.DebugLevel))
+	if len(cert) > 0 {
+		restyC.SetRootCertificate(cert)
+	}
+
 	return &WindowsAgent{
 		Hostname:      info.Hostname,
 		Arch:          info.Architecture,
@@ -148,6 +159,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		Logger:        logger,
 		Version:       version,
 		Debug:         logger.IsLevelEnabled(logrus.DebugLevel),
+		rClient:       restyC,
 	}
 }
 
@@ -637,20 +649,8 @@ func (a *WindowsAgent) SendSoftware() {
 	sw := a.GetInstalledSoftware()
 	a.Logger.Debugln(sw)
 
-	url := a.BaseURL + "/api/v3/software/"
 	payload := map[string]interface{}{"agent_id": a.AgentID, "software": sw}
-
-	req := APIRequest{
-		URL:       url,
-		Method:    "POST",
-		Payload:   payload,
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	_, err := req.MakeRequest()
+	_, err := a.rClient.R().SetBody(payload).Post("/api/v3/software/")
 	if err != nil {
 		a.Logger.Debugln(err)
 	}
@@ -667,7 +667,7 @@ func (a *WindowsAgent) UninstallCleanup() {
 // Otherwise prints to the console
 func ShowStatus(version string) {
 	statusMap := make(map[string]string)
-	svcs := []string{"tacticalagent", "checkrunner", "tacticalrpc", "salt-minion", "mesh agent"}
+	svcs := []string{"tacticalagent", "mesh agent"}
 
 	for _, service := range svcs {
 		status, err := GetServiceStatus(service)
@@ -685,17 +685,11 @@ func ShowStatus(version string) {
 			w32.ShowWindow(window, w32.SW_HIDE)
 		}
 		var handle w32.HWND
-		msg := fmt.Sprintf("Agent: %s\n\nCheck Runner: %s\n\nRPC Service: %s\n\nSalt Minion: %s\n\nMesh Agent: %s",
-			statusMap["tacticalagent"], statusMap["checkrunner"], statusMap["tacticalrpc"],
-			statusMap["salt-minion"], statusMap["mesh agent"],
-		)
+		msg := fmt.Sprintf("Agent: %s\n\nMesh Agent: %s", statusMap["tacticalagent"], statusMap["mesh agent"])
 		w32.MessageBox(handle, msg, fmt.Sprintf("Tactical RMM v%s", version), w32.MB_OK|w32.MB_ICONINFORMATION)
 	} else {
 		fmt.Println("Tactical RMM Version", version)
 		fmt.Println("Agent:", statusMap["tacticalagent"])
-		fmt.Println("Check Runner:", statusMap["checkrunner"])
-		fmt.Println("RPC Service:", statusMap["tacticalrpc"])
-		fmt.Println("Salt Minion:", statusMap["salt-minion"])
 		fmt.Println("Mesh Agent:", statusMap["mesh agent"])
 	}
 }

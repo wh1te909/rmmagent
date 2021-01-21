@@ -14,6 +14,7 @@ import (
 	"time"
 
 	ps "github.com/elastic/go-sysinfo"
+	"github.com/go-resty/resty/v2"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	rmm "github.com/wh1te909/rmmagent/shared"
@@ -21,9 +22,9 @@ import (
 
 func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Infoln("Checkrunner service started.")
-	sleepDelay := randRange(14, 22)
-	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
-	time.Sleep(time.Duration(sleepDelay) * time.Second)
+	//sleepDelay := randRange(14, 22)
+	//a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
+	//time.Sleep(time.Duration(sleepDelay) * time.Second)
 	for {
 		interval, err := a.RunChecks()
 		if err != nil {
@@ -36,17 +37,7 @@ func (a *WindowsAgent) CheckRunner() {
 
 func (a *WindowsAgent) RunChecks() (int, error) {
 	data := rmm.AllChecks{}
-	url := fmt.Sprintf("%s/api/v3/%s/checkrunner/", a.BaseURL, a.AgentID)
-	req := APIRequest{
-		URL:       url,
-		Method:    "GET",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r, err := req.MakeRequest()
+	r, err := a.rClient.R().Get(fmt.Sprintf("/api/v3/%s/checkrunner/", a.AgentID))
 	if err != nil {
 		a.Logger.Debugln(err)
 		return 120, err
@@ -70,38 +61,38 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 		switch check.CheckType {
 		case "diskspace":
 			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup, r *resty.Client) {
 				defer wg.Done()
 				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
-				a.DiskCheck(c)
-			}(check, &wg)
+				a.DiskCheck(c, r)
+			}(check, &wg, a.rClient)
 		case "cpuload":
 			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup, r *resty.Client) {
 				defer wg.Done()
-				a.CPULoadCheck(c)
-			}(check, &wg)
+				a.CPULoadCheck(c, r)
+			}(check, &wg, a.rClient)
 		case "memory":
 			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup, r *resty.Client) {
 				defer wg.Done()
 				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
-				a.MemCheck(c)
-			}(check, &wg)
+				a.MemCheck(c, r)
+			}(check, &wg, a.rClient)
 		case "ping":
 			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup, r *resty.Client) {
 				defer wg.Done()
 				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
-				a.PingCheck(c)
-			}(check, &wg)
+				a.PingCheck(c, r)
+			}(check, &wg, a.rClient)
 		case "script":
 			wg.Add(1)
-			go func(c rmm.Check, wg *sync.WaitGroup) {
+			go func(c rmm.Check, wg *sync.WaitGroup, r *resty.Client) {
 				defer wg.Done()
 				time.Sleep(time.Duration(randRange(300, 950)) * time.Millisecond)
-				a.ScriptCheck(c)
-			}(check, &wg)
+				a.ScriptCheck(c, r)
+			}(check, &wg, a.rClient)
 		case "winsvc":
 			winServiceChecks = append(winServiceChecks, check)
 		case "eventlog":
@@ -111,22 +102,22 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 		}
 	}
 
-	go func(wg *sync.WaitGroup) {
+	go func(wg *sync.WaitGroup, r *resty.Client) {
 		for _, winSvcCheck := range winServiceChecks {
-			time.Sleep(200 * time.Millisecond)
+			//time.Sleep(200 * time.Millisecond)
 			wg.Add(1)
-			a.WinSvcCheck(winSvcCheck)
+			a.WinSvcCheck(winSvcCheck, r)
 			wg.Done()
 		}
-	}(&wg)
+	}(&wg, a.rClient)
 
-	go func(wg *sync.WaitGroup) {
+	go func(wg *sync.WaitGroup, r *resty.Client) {
 		for _, evtCheck := range eventLogChecks {
 			wg.Add(1)
-			a.EventLogCheck(evtCheck)
+			a.EventLogCheck(evtCheck, r)
 			wg.Done()
 		}
-	}(&wg)
+	}(&wg, a.rClient)
 
 	wg.Wait()
 	return data.CheckInfo.Interval, nil
@@ -247,21 +238,11 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 }
 
 // ScriptCheck runs either bat, powershell or python script
-func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   30,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
+func (a *WindowsAgent) ScriptCheck(data rmm.Check, r *resty.Client) {
 	start := time.Now()
 	stdout, stderr, retcode, _ := a.RunScript(data.Script.Code, data.Script.Shell, data.ScriptArgs, data.Timeout)
 
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":      data.CheckPK,
 		"stdout":  stdout,
 		"stderr":  stderr,
@@ -269,7 +250,7 @@ func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
 		"runtime": time.Since(start).Seconds(),
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -279,28 +260,20 @@ func (a *WindowsAgent) ScriptCheck(data rmm.Check) {
 }
 
 // DiskCheck checks disk usage
-func (a *WindowsAgent) DiskCheck(data rmm.Check) {
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
+func (a *WindowsAgent) DiskCheck(data rmm.Check, r *resty.Client) {
+	var payload map[string]interface{}
 
 	usage, err := disk.Usage(data.Disk)
 	if err != nil {
 		a.Logger.Debugln("Disk", data.Disk, err)
-		r.Payload = map[string]interface{}{"id": data.CheckPK, "exists": false}
-		if _, err := r.MakeRequest(); err != nil {
+		payload = map[string]interface{}{"id": data.CheckPK, "exists": false}
+		if _, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/"); err != nil {
 			a.Logger.Debugln(err)
 		}
 		return
 	}
 
-	r.Payload = map[string]interface{}{
+	payload = map[string]interface{}{
 		"id":           data.CheckPK,
 		"exists":       true,
 		"percent_used": usage.UsedPercent,
@@ -308,7 +281,7 @@ func (a *WindowsAgent) DiskCheck(data rmm.Check) {
 		"free":         usage.Free,
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -318,29 +291,19 @@ func (a *WindowsAgent) DiskCheck(data rmm.Check) {
 }
 
 // CPULoadCheck checks avg cpu load
-func (a *WindowsAgent) CPULoadCheck(data rmm.Check) {
+func (a *WindowsAgent) CPULoadCheck(data rmm.Check, r *resty.Client) {
 	percent, err := cpu.Percent(10*time.Second, false)
 	if err != nil {
 		a.Logger.Debugln("CPU Check:", err)
 		return
 	}
 
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":      data.CheckPK,
 		"percent": int(math.Round(percent[0])),
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -350,27 +313,17 @@ func (a *WindowsAgent) CPULoadCheck(data rmm.Check) {
 }
 
 // MemCheck checks mem percentage
-func (a *WindowsAgent) MemCheck(data rmm.Check) {
+func (a *WindowsAgent) MemCheck(data rmm.Check, r *resty.Client) {
 	host, _ := ps.Host()
 	mem, _ := host.Memory()
 	percent := (float64(mem.Used) / float64(mem.Total)) * 100
 
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":      data.CheckPK,
 		"percent": int(math.Round(percent)),
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -379,25 +332,14 @@ func (a *WindowsAgent) MemCheck(data rmm.Check) {
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
-func (a *WindowsAgent) EventLogCheck(data rmm.Check) {
+func (a *WindowsAgent) EventLogCheck(data rmm.Check, r *resty.Client) {
 	evtLog := a.GetEventLog(data.LogName, data.SearchLastDays)
-
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   30,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":  data.CheckPK,
 		"log": evtLog,
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
@@ -406,7 +348,7 @@ func (a *WindowsAgent) EventLogCheck(data rmm.Check) {
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
 }
 
-func (a *WindowsAgent) PingCheck(data rmm.Check) {
+func (a *WindowsAgent) PingCheck(data rmm.Check, r *resty.Client) {
 	cmdArgs := []string{data.IP}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(90)*time.Second)
 	defer cancel()
@@ -436,45 +378,25 @@ func (a *WindowsAgent) PingCheck(data rmm.Check) {
 		output = outb.String()
 	}
 
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":         data.CheckPK,
 		"has_stdout": hasOut,
 		"has_stderr": hasErr,
 		"output":     output,
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return
 	}
 
 	a.handleAssignedTasks(resp.String(), data.AssignedTasks)
-
 }
 
-func (a *WindowsAgent) WinSvcCheck(data rmm.Check) {
+func (a *WindowsAgent) WinSvcCheck(data rmm.Check, r *resty.Client) {
 	var status string
 	exists := true
-	url := a.BaseURL + "/api/v3/checkrunner/"
-	r := APIRequest{
-		URL:       url,
-		Method:    "PATCH",
-		Headers:   a.Headers,
-		Timeout:   15,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
 
 	status, err := GetServiceStatus(data.ServiceName)
 	if err != nil {
@@ -483,13 +405,13 @@ func (a *WindowsAgent) WinSvcCheck(data rmm.Check) {
 		a.Logger.Debugln("Service", data.ServiceName, err)
 	}
 
-	r.Payload = map[string]interface{}{
+	payload := map[string]interface{}{
 		"id":     data.CheckPK,
 		"exists": exists,
 		"status": status,
 	}
 
-	resp, err := r.MakeRequest()
+	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")
 	if err != nil {
 		a.Logger.Debugln(err)
 		return

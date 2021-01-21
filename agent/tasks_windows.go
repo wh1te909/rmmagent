@@ -14,17 +14,8 @@ import (
 
 func (a *WindowsAgent) RunTask(id int) error {
 	data := rmm.AutomatedTask{}
-	url := fmt.Sprintf("%s/api/v3/%d/%s/taskrunner/", a.BaseURL, id, a.AgentID)
-	r := APIRequest{
-		URL:       url,
-		Method:    "GET",
-		Headers:   a.Headers,
-		Timeout:   30,
-		LocalCert: a.Cert,
-		Debug:     a.Debug,
-	}
-
-	r1, gerr := r.MakeRequest()
+	url := fmt.Sprintf("/api/v3/%d/%s/taskrunner/", id, a.AgentID)
+	r1, gerr := a.rClient.R().Get(url)
 	if gerr != nil {
 		a.Logger.Debugln(gerr)
 		return gerr
@@ -50,10 +41,9 @@ func (a *WindowsAgent) RunTask(id int) error {
 		ExecTime float64 `json:"execution_time"`
 	}
 
-	r.Method = "PATCH"
-	r.Payload = TaskResult{Stdout: stdout, Stderr: stderr, RetCode: retcode, ExecTime: time.Since(start).Seconds()}
+	payload := TaskResult{Stdout: stdout, Stderr: stderr, RetCode: retcode, ExecTime: time.Since(start).Seconds()}
 
-	_, perr := r.MakeRequest()
+	_, perr := a.rClient.R().SetBody(payload).Patch(url)
 	if perr != nil {
 		a.Logger.Debugln(perr)
 		return perr

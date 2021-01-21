@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"fmt"
+	//"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -33,14 +33,14 @@ var (
 	installWinUpdateLocker uint32
 )
 
-func (a *WindowsAgent) RunRPC() {
+func (a *WindowsAgent) RunRPC(nc *nats.Conn) {
 	a.Logger.Infoln("RPC service started")
-	opts := a.setupNatsOptions()
-	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
-	nc, err := nats.Connect(server, opts...)
-	if err != nil {
-		a.Logger.Fatalln(err)
-	}
+	//opts := a.setupNatsOptions()
+	//server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
+	//nc, err := nats.Connect(server, opts...)
+	//if err != nil {
+	//a.Logger.Fatalln(err)
+	//}
 
 	nc.Subscribe(a.AgentID, func(msg *nats.Msg) {
 		a.Logger.SetOutput(os.Stdout)
@@ -320,7 +320,8 @@ func (a *WindowsAgent) RunRPC() {
 				a.GetWMI()
 			}()
 		case "runchecks":
-			go func() {
+			go a.RunChecks()
+			/* go func() {
 				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
 					a.Logger.Debugln("Checks are already running, please wait")
 				} else {
@@ -328,7 +329,7 @@ func (a *WindowsAgent) RunRPC() {
 					defer atomic.StoreUint32(&runCheckLocker, 0)
 					a.RunChecks()
 				}
-			}()
+			}() */
 
 		case "runtask":
 			go func(p *NatsMsg) {
