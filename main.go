@@ -80,6 +80,8 @@ func main() {
 		a.UninstallCleanup()
 	case "publicip":
 		fmt.Println(a.PublicIP())
+	case "removesalt":
+		a.RemoveSalt()
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return

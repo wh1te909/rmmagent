@@ -339,6 +339,20 @@ func (a *WindowsAgent) RunRPC() {
 				ret.Encode(a.PublicIP())
 				msg.Respond(resp)
 			}()
+		case "installpython":
+			go a.GetPython(true)
+		case "removesalt":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				err := a.RemoveSalt()
+				if err != nil {
+					ret.Encode(err.Error())
+				} else {
+					ret.Encode("ok")
+				}
+				msg.Respond(resp)
+			}()
 		case "installchoco":
 			go a.InstallChoco(nc)
 		case "installwithchoco":

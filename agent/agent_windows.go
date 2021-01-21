@@ -898,6 +898,20 @@ func (a *WindowsAgent) GetPython(force bool) {
 	}
 }
 
+func (a *WindowsAgent) RemoveSalt() error {
+	saltUnins := filepath.Join(a.SystemDrive, "\\salt", "uninst.exe")
+	if !FileExists(saltUnins) {
+		return errors.New("salt uninstaller does not exist")
+	}
+
+	_, err := CMD(saltUnins, []string{"/S"}, 900, false)
+	if err != nil {
+		a.Logger.Debugln("Error uninstall salt:", err)
+		return errors.New(err.Error())
+	}
+	return nil
+}
+
 func (a *WindowsAgent) deleteOldTacticalServices() {
 	services := []string{"checkrunner"}
 	for _, svc := range services {
