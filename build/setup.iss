@@ -69,6 +69,7 @@ var
 begin
   Exec('cmd.exe', '/c net stop tacticalagent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop tacticalagent: ' + IntToStr(ResultCode));
+  Exec('cmd.exe', '/c net stop checkrunner', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('cmd.exe', '/c net stop tacticalrpc', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('Stop tacticalrpc: ' + IntToStr(ResultCode));
   Exec('cmd.exe', '/c taskkill /F /IM tacticalrmm.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
