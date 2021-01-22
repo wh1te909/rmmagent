@@ -899,6 +899,13 @@ func (a *WindowsAgent) GetPython(force bool) {
 }
 
 func (a *WindowsAgent) RemoveSalt() error {
+	saltFiles := []string{"saltcustom", "salt-minion-setup.exe", "salt-minion-setup-x86.exe"}
+	for _, sf := range saltFiles {
+		if FileExists(filepath.Join(a.ProgramDir, sf)) {
+			os.Remove(filepath.Join(a.ProgramDir, sf))
+		}
+	}
+
 	saltUnins := filepath.Join(a.SystemDrive, "\\salt", "uninst.exe")
 	if !FileExists(saltUnins) {
 		return errors.New("salt uninstaller does not exist")
