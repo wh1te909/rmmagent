@@ -340,11 +340,16 @@ func copyFile(src, dst string) error {
 }
 
 func (a *WindowsAgent) checkExistingAndRemove(silent bool) {
+	hasReg := false
+	_, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`, registry.ALL_ACCESS)
+	if err == nil {
+		hasReg = true
+	}
 	installedMesh := filepath.Join(a.ProgramDir, "Mesh Agent", "MeshAgent.exe")
 	installedSalt := filepath.Join(a.SystemDrive, "\\salt", "uninst.exe")
 	agentDB := filepath.Join(a.ProgramDir, "agentdb.db")
-	if FileExists(installedMesh) || FileExists(installedSalt) || FileExists(agentDB) {
-		tacUninst := filepath.Join(a.ProgramDir, "unins000.exe")
+	if hasReg || FileExists(installedMesh) || FileExists(installedSalt) || FileExists(agentDB) {
+		tacUninst := filepath.Join(a.ProgramDir, a.GetUninstallExe())
 		tacUninstArgs := []string{tacUninst, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/FORCECLOSEAPPLICATIONS"}
 
 		window := w32.GetForegroundWindow()
