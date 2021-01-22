@@ -31,6 +31,7 @@ func (a *WindowsAgent) RunAsService() {
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
 	a.Logger.Infoln("Agent service started")
+	go a.GetPython(false)
 	sleepDelay := randRange(14, 22)
 	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
 	time.Sleep(time.Duration(sleepDelay) * time.Second)
@@ -44,7 +45,6 @@ func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
 		time.Sleep(time.Duration(randRange(300, 900)) * time.Millisecond)
 	}
 	a.SyncMeshNodeID(nc)
-	go a.GetPython(false)
 
 	time.Sleep(time.Duration(randRange(2, 7)) * time.Second)
 	a.CheckIn(nc, "startup")
