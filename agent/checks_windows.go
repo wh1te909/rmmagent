@@ -22,9 +22,9 @@ import (
 
 func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Infoln("Checkrunner service started.")
-	//sleepDelay := randRange(14, 22)
-	//a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
-	//time.Sleep(time.Duration(sleepDelay) * time.Second)
+	sleepDelay := randRange(14, 22)
+	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
+	time.Sleep(time.Duration(sleepDelay) * time.Second)
 	for {
 		interval, err := a.RunChecks()
 		if err != nil {
@@ -104,7 +104,7 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 
 	go func(wg *sync.WaitGroup, r *resty.Client) {
 		for _, winSvcCheck := range winServiceChecks {
-			//time.Sleep(200 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 			wg.Add(1)
 			a.WinSvcCheck(winSvcCheck, r)
 			wg.Done()
