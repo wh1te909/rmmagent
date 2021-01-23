@@ -4,7 +4,6 @@ package agent
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,7 +20,6 @@ import (
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
-	_ "github.com/mattn/go-sqlite3" // ok
 	nats "github.com/nats-io/nats.go"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
@@ -80,7 +78,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 	}
 
 	if FileExists(dbFile) {
-		migrateDBToReg(dbFile, logger)
+		os.Remove(dbFile)
 	}
 
 	var (
@@ -164,56 +162,6 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 		Debug:         logger.IsLevelEnabled(logrus.DebugLevel),
 		rClient:       restyC,
 	}
-}
-
-func migrateDBToReg(dbFile string, logger *logrus.Logger) {
-	_, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\TacticalRMM`, registry.ALL_ACCESS)
-	if err == nil {
-		return
-	}
-
-	db, err := sql.Open("sqlite3", dbFile)
-	if err != nil {
-		logger.Fatalln(err)
-	}
-	defer db.Close()
-
-	rows, err := db.
-		Query("select server, agentid, mesh_node_id, token, agentpk, salt_master, salt_id, cert from agentstorage")
-	if err != nil {
-		logger.Fatalln(err)
-	}
-	defer rows.Close()
-
-	var (
-		server     string
-		agentid    string
-		meshid     string
-		token      string
-		pk         int32
-		saltmaster string
-		saltid     string
-		cert       *string
-	)
-	for rows.Next() {
-		err = rows.
-			Scan(&server, &agentid, &meshid, &token, &pk, &saltmaster, &saltid, &cert)
-		if err != nil {
-			logger.Fatalln(err)
-		}
-	}
-
-	var ret string
-	if cert != nil {
-		ret = *cert
-	}
-
-	err = rows.Err()
-	if err != nil {
-		logger.Fatalln(err)
-	}
-
-	createRegKeys(server, agentid, saltmaster, token, strconv.Itoa(int(pk)), ret)
 }
 
 // ArchInfo returns arch specific filenames and urls
