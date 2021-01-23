@@ -871,8 +871,8 @@ func (a *WindowsAgent) GetPython(force bool) {
 	}
 	pyFolder := filepath.Join(a.ProgramDir, folder)
 	pyZip := filepath.Join(a.ProgramDir, archZip)
-	fmt.Println(pyZip)
-	fmt.Println(a.PyBin)
+	a.Logger.Debugln(pyZip)
+	a.Logger.Debugln(a.PyBin)
 	defer os.Remove(pyZip)
 
 	if force {
@@ -880,9 +880,14 @@ func (a *WindowsAgent) GetPython(force bool) {
 	}
 
 	rClient := resty.New()
-	rClient.SetTimeout(25 * time.Minute)
+	rClient.SetTimeout(20 * time.Minute)
+	rClient.SetRetryCount(10)
+	rClient.SetRetryWaitTime(1 * time.Minute)
+	rClient.SetRetryMaxWaitTime(15 * time.Minute)
 
-	r, err := rClient.R().SetOutput(pyZip).Get(fmt.Sprintf("https://files.xlawgaming.com/%s", archZip))
+	url := fmt.Sprintf("https://github.com/wh1te909/rmmagent/releases/download/v%s/%s", a.Version, archZip)
+	a.Logger.Debugln(url)
+	r, err := rClient.R().SetOutput(pyZip).Get(url)
 	if err != nil {
 		a.Logger.Errorln("Unable to download py3.zip:", err)
 		return

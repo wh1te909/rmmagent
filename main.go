@@ -82,6 +82,8 @@ func main() {
 		fmt.Println(a.PublicIP())
 	case "removesalt":
 		a.RemoveSalt()
+	case "getpython":
+		a.GetPython(true)
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return
