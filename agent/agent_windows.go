@@ -398,7 +398,7 @@ except:
 	print("None", end='')
 
 `
-	user, err := a.RunPythonCode(pyCode, 5)
+	user, err := a.RunPythonCode(pyCode, 5, []string{})
 	if err == nil {
 		return user
 	}
@@ -754,7 +754,7 @@ func (a *WindowsAgent) CleanupAgentUpdates() {
 	}
 }
 
-func (a *WindowsAgent) RunPythonCode(code string, timeout int) (string, error) {
+func (a *WindowsAgent) RunPythonCode(code string, timeout int, args []string) (string, error) {
 	content := []byte(code)
 	dir, err := ioutil.TempDir("", "tacticalpy")
 	if err != nil {
@@ -777,7 +777,12 @@ func (a *WindowsAgent) RunPythonCode(code string, timeout int) (string, error) {
 	defer cancel()
 
 	var outb, errb bytes.Buffer
-	cmd := exec.CommandContext(ctx, a.PyBin, tmpfn.Name())
+	cmdArgs := []string{tmpfn.Name()}
+	if len(args) > 0 {
+		cmdArgs = append(cmdArgs, args...)
+	}
+	a.Logger.Debugln(cmdArgs)
+	cmd := exec.CommandContext(ctx, a.PyBin, cmdArgs...)
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
 
