@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gonutz/w32"
 	nats "github.com/nats-io/nats.go"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
 	"github.com/ugorji/go/codec"
@@ -418,6 +420,36 @@ except:
 		return strings.Split(u.FullUser(), `\`)[1]
 	}
 	return "None"
+}
+
+func (a *WindowsAgent) GetCPULoadAvg() int {
+	fallback := false
+	pyCode := `
+import psutil
+try:
+	print(int(round(psutil.cpu_percent(interval=10))), end='')
+except:
+	print("pyerror", end='')
+`
+	pypercent, err := a.RunPythonCode(pyCode, 13, []string{})
+	if err != nil || pypercent == "pyerror" {
+		fallback = true
+	}
+
+	i, err := strconv.Atoi(pypercent)
+	if err != nil {
+		fallback = true
+	}
+
+	if fallback {
+		percent, err := cpu.Percent(10*time.Second, false)
+		if err != nil {
+			a.Logger.Debugln("Go CPU Check:", err)
+			return 0
+		}
+		return int(math.Round(percent[0]))
+	}
+	return i
 }
 
 // ForceKillSalt kills all salt related processes

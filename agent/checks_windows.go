@@ -15,7 +15,6 @@ import (
 
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
-	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	rmm "github.com/wh1te909/rmmagent/shared"
 )
@@ -309,15 +308,9 @@ func (a *WindowsAgent) DiskCheck(data rmm.Check, r *resty.Client) {
 
 // CPULoadCheck checks avg cpu load
 func (a *WindowsAgent) CPULoadCheck(data rmm.Check, r *resty.Client) {
-	percent, err := cpu.Percent(10*time.Second, false)
-	if err != nil {
-		a.Logger.Debugln("CPU Check:", err)
-		return
-	}
-
 	payload := map[string]interface{}{
 		"id":      data.CheckPK,
-		"percent": int(math.Round(percent[0])),
+		"percent": a.GetCPULoadAvg(),
 	}
 
 	resp, err := r.R().SetBody(payload).Patch("/api/v3/checkrunner/")

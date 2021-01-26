@@ -316,6 +316,16 @@ func (a *WindowsAgent) RunRPC() {
 				a.Logger.Debugln("Sending WMI")
 				a.GetWMI()
 			}()
+		case "cpuloadavg":
+			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				a.Logger.Debugln("Getting CPU Load Avg")
+				loadAvg := a.GetCPULoadAvg()
+				a.Logger.Debugln("CPU Load Avg:", loadAvg)
+				ret.Encode(loadAvg)
+				msg.Respond(resp)
+			}()
 		case "runchecks":
 			go func() {
 				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
