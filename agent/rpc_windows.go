@@ -323,7 +323,10 @@ func (a *WindowsAgent) RunRPC() {
 				} else {
 					a.Logger.Debugln("Running checks")
 					defer atomic.StoreUint32(&runCheckLocker, 0)
-					a.RunChecks()
+					_, checkerr := CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
+					if checkerr != nil {
+						a.Logger.Errorln("RPC RunChecks", checkerr)
+					}
 				}
 			}()
 		case "runtask":

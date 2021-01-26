@@ -26,31 +26,48 @@ func (a *WindowsAgent) CheckRunner() {
 	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
 	time.Sleep(time.Duration(sleepDelay) * time.Second)
 	for {
-		interval, err := a.RunChecks()
-		if err != nil {
-			a.Logger.Debugln("RunChecks", err)
+		interval, err := a.GetCheckInterval()
+		if err == nil {
+			_, err = CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
+			if err != nil {
+				a.Logger.Errorln("Checkrunner RunChecks", err)
+			}
 		}
-		a.Logger.Debugln("Sleeping for", interval)
+		a.Logger.Debugln("Checkrunner sleeping for", interval)
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
 }
 
-func (a *WindowsAgent) RunChecks() (int, error) {
-	data := rmm.AllChecks{}
-	r, err := a.rClient.R().Get(fmt.Sprintf("/api/v3/%s/checkrunner/", a.AgentID))
+func (a *WindowsAgent) GetCheckInterval() (int, error) {
+	r, err := a.rClient.R().SetResult(&rmm.CheckInfo{}).Get(fmt.Sprintf("/api/v3/%s/checkinterval/", a.AgentID))
 	if err != nil {
 		a.Logger.Debugln(err)
 		return 120, err
 	}
+	if r.IsError() {
+		a.Logger.Debugln("Checkinterval response code:", r.StatusCode())
+		return 120, fmt.Errorf("checkinterval response code: %v", r.StatusCode())
+	}
+	interval := r.Result().(*rmm.CheckInfo).Interval
+	return interval, nil
+}
+
+func (a *WindowsAgent) RunChecks() error {
+	data := rmm.AllChecks{}
+	r, err := a.rClient.R().Get(fmt.Sprintf("/api/v3/%s/checkrunner/", a.AgentID))
+	if err != nil {
+		a.Logger.Debugln(err)
+		return err
+	}
 
 	if r.IsError() {
 		a.Logger.Debugln("Checkrunner response code:", r.StatusCode())
-		return 120, nil
+		return nil
 	}
 
 	if err := json.Unmarshal(r.Body(), &data); err != nil {
 		a.Logger.Debugln(err)
-		return 120, err
+		return err
 	}
 
 	var wg sync.WaitGroup
@@ -120,7 +137,7 @@ func (a *WindowsAgent) RunChecks() (int, error) {
 	}(&wg, a.rClient)
 
 	wg.Wait()
-	return data.CheckInfo.Interval, nil
+	return nil
 }
 
 func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeout int) (stdout, stderr string, exitcode int, e error) {
