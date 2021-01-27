@@ -2,13 +2,13 @@
     "FixedFileInfo": {
         "FileVersion": {
             "Major": 1,
-            "Minor": 3,
+            "Minor": 4,
             "Patch": 0,
             "Build": 0
         },
         "ProductVersion": {
             "Major": 1,
-            "Minor": 3,
+            "Minor": 4,
             "Patch": 0,
             "Build": 0
         },
@@ -22,14 +22,14 @@
         "Comments": "",
         "CompanyName": "Tactical Techs",
         "FileDescription": "Tactical RMM Agent",
-        "FileVersion": "v1.3.0.0",
+        "FileVersion": "v1.4.0.0",
         "InternalName": "tacticalrmm.exe",
         "LegalCopyright": "Copyright (c) 2020 Tactical Techs",
         "LegalTrademarks": "",
         "OriginalFilename": "tacticalrmm.exe",
         "PrivateBuild": "",
         "ProductName": "Tactical RMM Agent",
-        "ProductVersion": "v1.3.0.0",
+        "ProductVersion": "v1.4.0.0",
         "SpecialBuild": ""
     },
     "VarFileInfo": {
