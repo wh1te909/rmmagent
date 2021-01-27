@@ -395,13 +395,18 @@ func (a *WindowsAgent) LoggedOnUser() string {
 import psutil
 
 try:
-	print(psutil.users()[0].name, end='')
-except:
+	u = psutil.users()[0].name
+	if u.isascii():
+		print(u, end='')
+	else:
+		print('notascii', end='')
+except Exception as e:
 	print("None", end='')
 
 `
+	// try with psutil first, if fails, fallback to golang
 	user, err := a.RunPythonCode(pyCode, 5, []string{})
-	if err == nil {
+	if err == nil && user != "notascii" {
 		return user
 	}
 
