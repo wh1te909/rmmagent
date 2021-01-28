@@ -49,6 +49,38 @@ func (a *WindowsAgent) GetProcsRPC() []ProcessMsg {
 	return ret
 }
 
+// ChecksRunning prevents duplicate checks from running
+// Have to do it this way, can't use atomic because they can run from both rpc and tacticalagent services
+func (a *WindowsAgent) ChecksRunning() bool {
+	running := false
+	procs, err := ps.Processes()
+	if err != nil {
+		return running
+	}
+
+Out:
+	for _, process := range procs {
+		p, err := process.Info()
+		if err != nil {
+			continue
+		}
+		if p.PID == 0 {
+			continue
+		}
+		if p.Exe != a.EXE {
+			continue
+		}
+
+		for _, arg := range p.Args {
+			if arg == "runchecks" {
+				running = true
+				break Out
+			}
+		}
+	}
+	return running
+}
+
 // https://yourbasic.org/golang/formatting-byte-size-to-human-readable-format/
 func ByteCountSI(b uint64) string {
 	const unit = 1000

@@ -328,9 +328,19 @@ func (a *WindowsAgent) RunRPC() {
 			}()
 		case "runchecks":
 			go func() {
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
-					a.Logger.Debugln("Checks are already running, please wait")
+					ret.Encode("busy")
+					msg.Respond(resp)
+					a.Logger.Debugln("RPC checks are already running, please wait")
+				} else if a.ChecksRunning() {
+					ret.Encode("busy")
+					msg.Respond(resp)
+					a.Logger.Debugln("Checks are already running from the checkrunner process, please wait")
 				} else {
+					ret.Encode("ok")
+					msg.Respond(resp)
 					a.Logger.Debugln("Running checks")
 					defer atomic.StoreUint32(&runCheckLocker, 0)
 					_, checkerr := CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
