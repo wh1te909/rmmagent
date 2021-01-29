@@ -26,7 +26,7 @@ func (a *WindowsAgent) CheckRunner() {
 	time.Sleep(time.Duration(sleepDelay) * time.Second)
 	for {
 		interval, err := a.GetCheckInterval()
-		if err == nil {
+		if err == nil && !a.ChecksRunning() {
 			_, err = CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
 			if err != nil {
 				a.Logger.Errorln("Checkrunner RunChecks", err)
@@ -130,8 +130,8 @@ func (a *WindowsAgent) RunChecks() error {
 	go func(wg *sync.WaitGroup, r *resty.Client) {
 		for _, evtCheck := range eventLogChecks {
 			wg.Add(1)
+			defer wg.Done()
 			a.EventLogCheck(evtCheck, r)
-			wg.Done()
 		}
 	}(&wg, a.rClient)
 

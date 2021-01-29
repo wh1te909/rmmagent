@@ -27,7 +27,6 @@ type NatsMsg struct {
 }
 
 var (
-	runCheckLocker         uint32
 	agentUpdateLocker      uint32
 	getWinUpdateLocker     uint32
 	installWinUpdateLocker uint32
@@ -330,19 +329,14 @@ func (a *WindowsAgent) RunRPC() {
 			go func() {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-				if !atomic.CompareAndSwapUint32(&runCheckLocker, 0, 1) {
+				if a.ChecksRunning() {
 					ret.Encode("busy")
 					msg.Respond(resp)
-					a.Logger.Debugln("RPC checks are already running, please wait")
-				} else if a.ChecksRunning() {
-					ret.Encode("busy")
-					msg.Respond(resp)
-					a.Logger.Debugln("Checks are already running from the checkrunner process, please wait")
+					a.Logger.Debugln("Checks are already running, please wait")
 				} else {
 					ret.Encode("ok")
 					msg.Respond(resp)
 					a.Logger.Debugln("Running checks")
-					defer atomic.StoreUint32(&runCheckLocker, 0)
 					_, checkerr := CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
 					if checkerr != nil {
 						a.Logger.Errorln("RPC RunChecks", checkerr)
