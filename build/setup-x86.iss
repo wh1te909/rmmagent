@@ -29,7 +29,8 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-RestartApplications=no
+RestartApplications=yes
+CloseApplications=force
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
