@@ -719,7 +719,7 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 
 	innoLogFile := filepath.Join(dir, "tacticalrmm.txt")
 
-	args := []string{"/C", updater, "/VERYSILENT", "/SUPPRESSMSGBOXES", fmt.Sprintf("/LOG=%s", innoLogFile)}
+	args := []string{"/C", updater, "/VERYSILENT", "/FORCECLOSEAPPLICATIONS", fmt.Sprintf("/LOG=%s", innoLogFile)}
 	cmd := exec.Command("cmd.exe", args...)
 	cmd.SysProcAttr = &windows.SysProcAttr{
 		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
