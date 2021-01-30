@@ -290,7 +290,21 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 				_, _ = CMD("shutdown.exe", []string{"/r", "/t", "5", "/f"}, 15, false)
 			}()
-
+		case "needsreboot":
+			go func() {
+				a.Logger.Debugln("Checking if reboot needed")
+				var resp []byte
+				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				out, err := a.SystemRebootRequired()
+				if err == nil {
+					a.Logger.Debugln("Reboot needed:", out)
+					ret.Encode(out)
+				} else {
+					a.Logger.Debugln("Error checking if reboot needed:", err)
+					ret.Encode(false)
+				}
+				msg.Respond(resp)
+			}()
 		case "sysinfo":
 			go func() {
 				var resp []byte

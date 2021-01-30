@@ -153,11 +153,12 @@ type CheckInSW struct {
 
 type CheckInOS struct {
 	CheckIn
-	Hostname string  `json:"hostname"`
-	OS       string  `json:"operating_system"`
-	Platform string  `json:"plat"`
-	TotalRAM float64 `json:"total_ram"`
-	BootTime int64   `json:"boot_time"`
+	Hostname     string  `json:"hostname"`
+	OS           string  `json:"operating_system"`
+	Platform     string  `json:"plat"`
+	TotalRAM     float64 `json:"total_ram"`
+	BootTime     int64   `json:"boot_time"`
+	RebootNeeded bool    `json:"needs_reboot"`
 }
 
 type CheckInWinServices struct {

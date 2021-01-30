@@ -100,17 +100,22 @@ func (a *WindowsAgent) CheckIn(nc *nats.Conn, mode string) {
 		}
 	case "osinfo":
 		plat, osinfo := a.OSInfo()
+		reboot, err := a.SystemRebootRequired()
+		if err != nil {
+			reboot = false
+		}
 		payload = rmm.CheckInOS{
 			CheckIn: rmm.CheckIn{
 				Func:    "osinfo",
 				Agentid: a.AgentID,
 				Version: a.Version,
 			},
-			Hostname: a.Hostname,
-			OS:       osinfo,
-			Platform: plat,
-			TotalRAM: a.TotalRAM(),
-			BootTime: a.BootTime(),
+			Hostname:     a.Hostname,
+			OS:           osinfo,
+			Platform:     plat,
+			TotalRAM:     a.TotalRAM(),
+			BootTime:     a.BootTime(),
+			RebootNeeded: reboot,
 		}
 	case "winservices":
 		payload = rmm.CheckInWinServices{
