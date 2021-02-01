@@ -40,6 +40,7 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 		result.UpdateID = id
 
 		query := fmt.Sprintf("UpdateID='%s'", id)
+		a.Logger.Debugln("query:", query)
 		updts, err := session.GetWUAUpdateCollection(query)
 		if err != nil {
 			a.Logger.Errorln(err)
@@ -50,6 +51,7 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 		}
 		defer updts.Release()
 
+		a.Logger.Debugln("updts:", updts)
 		updtCnt, err := updts.Count()
 		if err != nil {
 			a.Logger.Errorln(err)
@@ -58,6 +60,7 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 			nc.PublishRequest(a.AgentID, "winupdateresult", resp)
 			continue
 		}
+		a.Logger.Debugln("updtCnt:", updtCnt)
 
 		if updtCnt == 0 {
 			result.Success = false
@@ -75,6 +78,7 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 				nc.PublishRequest(a.AgentID, "winupdateresult", resp)
 				continue
 			}
+			a.Logger.Debugln("u:", u)
 			err = session.InstallWUAUpdate(u)
 			if err != nil {
 				a.Logger.Errorln(err)
