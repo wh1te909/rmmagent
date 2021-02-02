@@ -301,7 +301,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 		_, _ = CMD(a.Nssm, s, 25, false)
 	}
 
-	a.Logger.Infoln("Adding windows defender exlusions")
+	a.Logger.Infoln("Adding windows defender exclusions")
 	a.addDefenderExlusions()
 
 	if i.Power {
