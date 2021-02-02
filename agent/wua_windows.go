@@ -457,23 +457,6 @@ func (s *IUpdateSession) GetWUAUpdateCollection(query string) (*IUpdateCollectio
 
 // SystemRebootRequired checks whether a system reboot is required.
 func (a *WindowsAgent) SystemRebootRequired() (bool, error) {
-	// https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw#remarks
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager`, registry.QUERY_VALUE)
-	if err == nil {
-		val, _, err := k.GetStringsValue("PendingFileRenameOperations")
-		if err == nil {
-			k.Close()
-
-			if len(val) > 0 {
-				return true, nil
-			}
-		} else if err != registry.ErrNotExist {
-			return false, err
-		}
-	} else if err != registry.ErrNotExist {
-		return false, err
-	}
-
 	regKeys := []string{
 		`SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired`,
 	}
