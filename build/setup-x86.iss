@@ -31,6 +31,7 @@ SolidCompression=yes
 WizardStyle=modern
 RestartApplications=no
 CloseApplications=no
+MinVersion=6.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
