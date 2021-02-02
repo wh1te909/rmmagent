@@ -923,3 +923,17 @@ func (a *WindowsAgent) deleteOldTacticalServices() {
 		}
 	}
 }
+
+func (a *WindowsAgent) addDefenderExlusions() {
+	code := `
+Add-MpPreference -ExclusionPath 'C:\Program Files\TacticalAgent\*'
+Add-MpPreference -ExclusionPath 'C:\Windows\Temp\winagent-v*.exe'
+Add-MpPreference -ExclusionPath 'C:\Windows\Temp\tacticalrmm\*'
+Add-MpPreference -ExclusionPath 'C:\Windows\Temp\trmm\*'
+Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*'
+`
+	_, _, _, err := a.RunScript(code, "powershell", []string{}, 20)
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
+}

@@ -301,6 +301,9 @@ func (a *WindowsAgent) Install(i *Installer) {
 		_, _ = CMD(a.Nssm, s, 25, false)
 	}
 
+	a.Logger.Infoln("Adding windows defender exlusions")
+	a.addDefenderExlusions()
+
 	if i.Power {
 		a.Logger.Infoln("Disabling sleep/hibernate...")
 		DisableSleepHibernate()
