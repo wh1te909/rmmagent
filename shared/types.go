@@ -28,6 +28,11 @@ type WinUpdateInstallResult struct {
 	Success  bool   `json:"success"`
 }
 
+type SupersededUpdate struct {
+	AgentID  string `json:"agent_id"`
+	UpdateID string `json:"guid"`
+}
+
 type AgentNeedsReboot struct {
 	AgentID     string `json:"agent_id"`
 	NeedsReboot bool   `json:"needs_reboot"`

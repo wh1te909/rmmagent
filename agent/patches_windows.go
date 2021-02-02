@@ -16,6 +16,14 @@ func (a *WindowsAgent) GetWinUpdates(nc *nats.Conn) {
 		return
 	}
 
+	for _, update := range updates {
+		a.Logger.Debugln("GUID:", update.UpdateID)
+		a.Logger.Debugln("Downloaded:", update.Downloaded)
+		a.Logger.Debugln("Installed:", update.Installed)
+		a.Logger.Debugln("KB:", update.KBArticleIDs)
+		a.Logger.Debugln("--------------------------------")
+	}
+
 	payload := rmm.WinUpdateResult{AgentID: a.AgentID, Updates: updates}
 	var resp []byte
 	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
@@ -51,7 +59,6 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 		}
 		defer updts.Release()
 
-		a.Logger.Debugln("updts:", updts)
 		updtCnt, err := updts.Count()
 		if err != nil {
 			a.Logger.Errorln(err)
@@ -63,9 +70,9 @@ func (a *WindowsAgent) InstallUpdates(nc *nats.Conn, guids []string) {
 		a.Logger.Debugln("updtCnt:", updtCnt)
 
 		if updtCnt == 0 {
-			result.Success = false
-			ret.Encode(result)
-			nc.PublishRequest(a.AgentID, "winupdateresult", resp)
+			superseded := rmm.SupersededUpdate{AgentID: a.AgentID, UpdateID: id}
+			ret.Encode(superseded)
+			nc.PublishRequest(a.AgentID, "superseded", resp)
 			continue
 		}
 
