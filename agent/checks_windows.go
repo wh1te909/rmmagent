@@ -118,23 +118,25 @@ func (a *WindowsAgent) RunChecks() error {
 		}
 	}
 
-	go func(wg *sync.WaitGroup, r *resty.Client) {
-		for _, winSvcCheck := range winServiceChecks {
-			time.Sleep(200 * time.Millisecond)
-			wg.Add(1)
-			a.WinSvcCheck(winSvcCheck, r)
-			wg.Done()
-		}
-	}(&wg, a.rClient)
+	if len(winServiceChecks) > 0 {
+		wg.Add(len(winServiceChecks))
+		go func(wg *sync.WaitGroup, r *resty.Client) {
+			for _, winSvcCheck := range winServiceChecks {
+				defer wg.Done()
+				a.WinSvcCheck(winSvcCheck, r)
+			}
+		}(&wg, a.rClient)
+	}
 
-	go func(wg *sync.WaitGroup, r *resty.Client) {
-		for _, evtCheck := range eventLogChecks {
-			wg.Add(1)
-			defer wg.Done()
-			a.EventLogCheck(evtCheck, r)
-		}
-	}(&wg, a.rClient)
-
+	if len(eventLogChecks) > 0 {
+		wg.Add(len(eventLogChecks))
+		go func(wg *sync.WaitGroup, r *resty.Client) {
+			for _, evtCheck := range eventLogChecks {
+				defer wg.Done()
+				a.EventLogCheck(evtCheck, r)
+			}
+		}(&wg, a.rClient)
+	}
 	wg.Wait()
 	return nil
 }
