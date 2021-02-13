@@ -118,7 +118,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	a.Logger.Debugln("Base URL:", baseURL)
 
 	iClient := resty.New()
-	iClient.SetCloseConnection(true)
 	iClient.SetTimeout(15 * time.Second)
 	iClient.SetDebug(a.Debug)
 	iClient.SetHeaders(i.Headers)
@@ -140,7 +139,6 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	rClient := resty.New()
-	rClient.SetCloseConnection(true)
 	rClient.SetTimeout(i.Timeout * time.Second)
 	rClient.SetDebug(a.Debug)
 	// set rest knox headers
