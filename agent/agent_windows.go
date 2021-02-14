@@ -25,7 +25,6 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/sirupsen/logrus"
-	"github.com/ugorji/go/codec"
 	wapf "github.com/wh1te909/go-win64api"
 	rmm "github.com/wh1te909/rmmagent/shared"
 	"golang.org/x/sys/windows"
@@ -540,10 +539,7 @@ func (a *WindowsAgent) RecoverSalt() {
 	a.Logger.Debugln("Salt recovery completed on", a.Hostname)
 }
 
-func (a *WindowsAgent) SyncMeshNodeID(nc *nats.Conn) {
-	var resp []byte
-	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
-
+func (a *WindowsAgent) SyncMeshNodeID() {
 	out, err := CMD(a.MeshSystemEXE, []string{"-nodeid"}, 10, false)
 	if err != nil {
 		a.Logger.Debugln(err)
@@ -568,18 +564,21 @@ func (a *WindowsAgent) SyncMeshNodeID(nc *nats.Conn) {
 		Agentid: a.AgentID,
 		NodeID:  StripAll(stdout),
 	}
-	ret.Encode(payload)
-	nc.PublishRequest(a.AgentID, "syncmesh", resp)
+
+	_, err = a.rClient.R().SetBody(payload).Post("/api/v3/syncmesh/")
+	if err != nil {
+		a.Logger.Debugln("SyncMesh:", err)
+	}
 }
 
 //RecoverMesh recovers mesh agent
-func (a *WindowsAgent) RecoverMesh(nc *nats.Conn) {
+func (a *WindowsAgent) RecoverMesh() {
 	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
 	defer CMD("net", []string{"start", a.MeshSVC}, 60, false)
 
 	_, _ = CMD("net", []string{"stop", a.MeshSVC}, 60, false)
 	a.ForceKillMesh()
-	a.SyncMeshNodeID(nc)
+	a.SyncMeshNodeID()
 }
 
 //RecoverRPC recovers nats rpc service

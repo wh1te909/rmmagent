@@ -271,7 +271,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 	} else {
 		startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 		for _, s := range startup {
-			a.CheckIn(nc, s)
+			a.CheckIn(s)
 			time.Sleep(200 * time.Millisecond)
 		}
 		nc.Close()

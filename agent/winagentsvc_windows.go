@@ -1,35 +1,23 @@
 package agent
 
 import (
-	"fmt"
 	"math/rand"
-	"os"
 	"sync"
 	"time"
 
-	nats "github.com/nats-io/nats.go"
-	"github.com/ugorji/go/codec"
 	rmm "github.com/wh1te909/rmmagent/shared"
 )
 
 func (a *WindowsAgent) RunAsService() {
 	var wg sync.WaitGroup
-	opts := a.setupNatsOptions()
-	server := fmt.Sprintf("tls://%s:4222", a.ApiURL)
-
-	nc, err := nats.Connect(server, opts...)
-	if err != nil {
-		a.Logger.Errorln(err)
-		os.Exit(1)
-	}
 	wg.Add(1)
-	go a.WinAgentSvc(nc)
+	go a.WinAgentSvc()
 	go a.CheckRunner()
 	wg.Wait()
 }
 
 // WinAgentSvc tacticalagent windows nssm service
-func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
+func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
 	go a.GetPython(false)
 	sleepDelay := randRange(14, 22)
@@ -41,13 +29,13 @@ func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
 
 	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 	for _, s := range startup {
-		a.CheckIn(nc, s)
+		a.CheckIn(s)
 		time.Sleep(time.Duration(randRange(300, 900)) * time.Millisecond)
 	}
-	a.SyncMeshNodeID(nc)
+	a.SyncMeshNodeID()
 
 	time.Sleep(time.Duration(randRange(2, 7)) * time.Second)
-	a.CheckIn(nc, "startup")
+	a.CheckIn("startup")
 
 	checkInTicker := time.NewTicker(time.Duration(randRange(40, 110)) * time.Second)
 	checkInOSTicker := time.NewTicker(time.Duration(randRange(250, 450)) * time.Second)
@@ -61,29 +49,28 @@ func (a *WindowsAgent) WinAgentSvc(nc *nats.Conn) {
 	for {
 		select {
 		case <-checkInTicker.C:
-			a.CheckIn(nc, "hello")
+			a.CheckIn("hello")
 		case <-checkInOSTicker.C:
-			a.CheckIn(nc, "osinfo")
+			a.CheckIn("osinfo")
 		case <-checkInWinSvcTicker.C:
-			a.CheckIn(nc, "winservices")
+			a.CheckIn("winservices")
 		case <-checkInPubIPTicker.C:
-			a.CheckIn(nc, "publicip")
+			a.CheckIn("publicip")
 		case <-checkInDisksTicker.C:
-			a.CheckIn(nc, "disks")
+			a.CheckIn("disks")
 		case <-checkInLoggedUserTicker.C:
-			a.CheckIn(nc, "loggedonuser")
+			a.CheckIn("loggedonuser")
 		case <-checkInSWTicker.C:
-			a.CheckIn(nc, "software")
+			a.CheckIn("software")
 		case <-syncMeshTicker.C:
-			a.SyncMeshNodeID(nc)
+			a.SyncMeshNodeID()
 		}
 	}
 }
 
-func (a *WindowsAgent) CheckIn(nc *nats.Conn, mode string) {
+func (a *WindowsAgent) CheckIn(mode string) {
+	var rerr error
 	var payload interface{}
-	var resp []byte
-	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 
 	switch mode {
 	case "hello":
@@ -163,8 +150,20 @@ func (a *WindowsAgent) CheckIn(nc *nats.Conn, mode string) {
 			InstalledSW: a.GetInstalledSoftware(),
 		}
 	}
-	ret.Encode(payload)
-	nc.PublishRequest(a.AgentID, mode, resp)
+
+	url := "/api/v3/checkin/"
+
+	if mode == "hello" {
+		_, rerr = a.rClient.R().SetBody(payload).Patch(url)
+	} else if mode == "startup" {
+		_, rerr = a.rClient.R().SetBody(payload).Post(url)
+	} else {
+		_, rerr = a.rClient.R().SetBody(payload).Put(url)
+	}
+
+	if rerr != nil {
+		a.Logger.Debugln("Checkin:", rerr)
+	}
 }
 
 func randRange(min, max int) int {

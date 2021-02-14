@@ -249,7 +249,7 @@ func (a *WindowsAgent) RunRPC() {
 				switch p.Data["mode"] {
 				case "mesh":
 					a.Logger.Debugln("Recovering mesh")
-					a.RecoverMesh(nc)
+					a.RecoverMesh()
 				case "salt":
 					a.Logger.Debugln("Recovering salt")
 					a.RecoverSalt()
@@ -312,7 +312,7 @@ func (a *WindowsAgent) RunRPC() {
 				a.Logger.Debugln("Getting sysinfo with WMI")
 				modes := []string{"osinfo", "publicip", "disks"}
 				for _, m := range modes {
-					a.CheckIn(nc, m)
+					a.CheckIn(m)
 					time.Sleep(200 * time.Millisecond)
 				}
 				a.GetWMI()
@@ -385,7 +385,7 @@ func (a *WindowsAgent) RunRPC() {
 				msg.Respond(resp)
 			}()
 		case "installchoco":
-			go a.InstallChoco(nc)
+			go a.InstallChoco()
 		case "installwithchoco":
 			go func(p *NatsMsg) {
 				var resp []byte
@@ -402,7 +402,7 @@ func (a *WindowsAgent) RunRPC() {
 				} else {
 					a.Logger.Debugln("Checking for windows updates")
 					defer atomic.StoreUint32(&getWinUpdateLocker, 0)
-					a.GetWinUpdates(nc)
+					a.GetWinUpdates()
 				}
 			}()
 		case "installwinupdates":
@@ -412,7 +412,7 @@ func (a *WindowsAgent) RunRPC() {
 				} else {
 					a.Logger.Debugln("Installing windows updates", p.UpdateGUIDs)
 					defer atomic.StoreUint32(&installWinUpdateLocker, 0)
-					a.InstallUpdates(nc, p.UpdateGUIDs)
+					a.InstallUpdates(p.UpdateGUIDs)
 				}
 			}(payload)
 		case "agentupdate":

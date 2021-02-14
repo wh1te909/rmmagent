@@ -4,49 +4,44 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	nats "github.com/nats-io/nats.go"
-	"github.com/ugorji/go/codec"
 	rmm "github.com/wh1te909/rmmagent/shared"
 )
 
-func (a *WindowsAgent) InstallChoco(nc *nats.Conn) {
-	var resp []byte
+func (a *WindowsAgent) InstallChoco() {
+
 	var result rmm.ChocoInstalled
 	result.AgentID = a.AgentID
 	result.Installed = false
-	ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 
 	rClient := resty.New()
 	rClient.SetTimeout(30 * time.Second)
 
+	url := "/api/v3/choco/"
 	r, err := rClient.R().Get("https://chocolatey.org/install.ps1")
 	if err != nil {
-		ret.Encode(result)
-		nc.PublishRequest(a.AgentID, "chocoinstall", resp)
+		a.Logger.Debugln(err)
+		a.rClient.R().SetBody(result).Post(url)
 		return
 	}
 	if r.IsError() {
-		ret.Encode(result)
-		nc.PublishRequest(a.AgentID, "chocoinstall", resp)
+		a.rClient.R().SetBody(result).Post(url)
 		return
 	}
 
 	_, _, exitcode, err := a.RunScript(string(r.Body()), "powershell", []string{}, 900)
 	if err != nil {
-		ret.Encode(result)
-		nc.PublishRequest(a.AgentID, "chocoinstall", resp)
+		a.Logger.Debugln(err)
+		a.rClient.R().SetBody(result).Post(url)
 		return
 	}
 
 	if exitcode != 0 {
-		ret.Encode(result)
-		nc.PublishRequest(a.AgentID, "chocoinstall", resp)
+		a.rClient.R().SetBody(result).Post(url)
 		return
 	}
 
 	result.Installed = true
-	ret.Encode(result)
-	nc.PublishRequest(a.AgentID, "chocoinstall", resp)
+	a.rClient.R().SetBody(result).Post(url)
 }
 
 func (a *WindowsAgent) InstallWithChoco(name, version string) (string, error) {
