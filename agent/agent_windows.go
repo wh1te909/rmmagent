@@ -132,6 +132,7 @@ func New(logger *logrus.Logger, version string) *WindowsAgent {
 
 	restyC := resty.New()
 	restyC.SetHostURL(baseurl)
+	restyC.SetCloseConnection(true)
 	restyC.SetHeaders(headers)
 	restyC.SetTimeout(15 * time.Second)
 	restyC.SetDebug(logger.IsLevelEnabled(logrus.DebugLevel))
@@ -693,6 +694,7 @@ func (a *WindowsAgent) AgentUpdate(url, inno, version string) {
 	a.Logger.Infoln("Downloading agent update from", url)
 
 	rClient := resty.New()
+	rClient.SetCloseConnection(true)
 	rClient.SetTimeout(15 * time.Minute)
 	rClient.SetDebug(a.Debug)
 	r, err := rClient.R().SetOutput(updater).Get(url)
