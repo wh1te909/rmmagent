@@ -4,7 +4,7 @@ https://github.com/wh1te909/tacticalrmm
 
 ### Building the windows agent with custom branding
 Download and install the following prereqs
-- [Golang](https://golang.org/dl/go1.15.7.windows-amd64.msi)
+- [Golang](https://golang.org/dl/go1.16.windows-amd64.msi)
 - [Inno Setup](https://jrsoftware.org/isdl.php)
 - [Git bash](https://github.com/git-for-windows/git/releases/download/v2.30.0.windows.2/Git-2.30.0.2-64-bit.exe)
 
