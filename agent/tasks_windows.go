@@ -110,22 +110,23 @@ func (a *WindowsAgent) CreateInternalTask(name, args, repeat string, start int) 
 }
 
 type SchedTask struct {
-	PK          int                  `json:"pk"`
-	Type        string               `json:"type"`
-	Name        string               `json:"name"`
-	Trigger     string               `json:"trigger"`
-	Enabled     bool                 `json:"enabled"`
-	DeleteAfter bool                 `json:"deleteafter"`
-	WeekDays    taskmaster.DayOfWeek `json:"weekdays"`
-	Year        int                  `json:"year"`
-	Month       string               `json:"month"`
-	Day         int                  `json:"day"`
-	Hour        int                  `json:"hour"`
-	Minute      int                  `json:"min"`
-	Path        string               `json:"path"`
-	WorkDir     string               `json:"workdir"`
-	Args        string               `json:"args"`
-	Parallel    bool                 `json:"parallel"`
+	PK                 int                  `json:"pk"`
+	Type               string               `json:"type"`
+	Name               string               `json:"name"`
+	Trigger            string               `json:"trigger"`
+	Enabled            bool                 `json:"enabled"`
+	DeleteAfter        bool                 `json:"deleteafter"`
+	WeekDays           taskmaster.DayOfWeek `json:"weekdays"`
+	Year               int                  `json:"year"`
+	Month              string               `json:"month"`
+	Day                int                  `json:"day"`
+	Hour               int                  `json:"hour"`
+	Minute             int                  `json:"min"`
+	Path               string               `json:"path"`
+	WorkDir            string               `json:"workdir"`
+	Args               string               `json:"args"`
+	Parallel           bool                 `json:"parallel"`
+	RunASAPAfterMissed bool                 `json:"run_asap_after_missed"`
 }
 
 func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
@@ -219,6 +220,10 @@ func (a *WindowsAgent) CreateSchedTask(st SchedTask) (bool, error) {
 		def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_PARALLEL
 	} else {
 		def.Settings.MultipleInstances = taskmaster.TASK_INSTANCES_IGNORE_NEW
+	}
+
+	if st.RunASAPAfterMissed {
+		def.Settings.StartWhenAvailable = true
 	}
 
 	_, success, err := conn.CreateTask(fmt.Sprintf("\\%s", st.Name), def, true)
