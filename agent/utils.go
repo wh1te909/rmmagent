@@ -23,8 +23,8 @@ import (
 func (a *WindowsAgent) PublicIP() string {
 	a.Logger.Debugln("PublicIP start")
 	client := resty.New()
-	client.SetTimeout(7 * time.Second)
-	urls := []string{"https://icanhazip.xlawgaming.com/", "https://icanhazip.com", "https://ifconfig.co/ip"}
+	client.SetTimeout(4 * time.Second)
+	urls := []string{"https://icanhazip.tacticalrmm.io/", "https://icanhazip.com", "https://ifconfig.co/ip"}
 
 	for _, url := range urls {
 		r, err := client.R().Get(url)
