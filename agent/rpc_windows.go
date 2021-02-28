@@ -24,6 +24,7 @@ type NatsMsg struct {
 	UpdateGUIDs      []string          `json:"guids"`
 	ChocoProgName    string            `json:"choco_prog_name"`
 	ChocoProgVersion string            `json:"choco_prog_ver"`
+	PendingActionPK  int               `json:"pending_action_pk"`
 }
 
 var (
@@ -390,10 +391,12 @@ func (a *WindowsAgent) RunRPC() {
 			go func(p *NatsMsg) {
 				var resp []byte
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
+				ret.Encode("ok")
 				msg.Respond(resp)
 				out, _ := a.InstallWithChoco(p.ChocoProgName, p.ChocoProgVersion)
-				ret.Encode(out)
-				msg.Respond(resp)
+				results := map[string]string{"results": out}
+				url := fmt.Sprintf("/api/v3/%d/chocoresult/", p.PendingActionPK)
+				a.rClient.R().SetBody(results).Patch(url)
 			}(payload)
 		case "getwinupdates":
 			go func() {
