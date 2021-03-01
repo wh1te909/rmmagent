@@ -13,18 +13,17 @@ import (
 )
 
 type NatsMsg struct {
-	Func             string            `json:"func"`
-	Timeout          int               `json:"timeout"`
-	Data             map[string]string `json:"payload"`
-	ScriptArgs       []string          `json:"script_args"`
-	ProcPID          int32             `json:"procpid"`
-	TaskPK           int               `json:"taskpk"`
-	ScheduledTask    SchedTask         `json:"schedtaskpayload"`
-	RecoveryCommand  string            `json:"recoverycommand"`
-	UpdateGUIDs      []string          `json:"guids"`
-	ChocoProgName    string            `json:"choco_prog_name"`
-	ChocoProgVersion string            `json:"choco_prog_ver"`
-	PendingActionPK  int               `json:"pending_action_pk"`
+	Func            string            `json:"func"`
+	Timeout         int               `json:"timeout"`
+	Data            map[string]string `json:"payload"`
+	ScriptArgs      []string          `json:"script_args"`
+	ProcPID         int32             `json:"procpid"`
+	TaskPK          int               `json:"taskpk"`
+	ScheduledTask   SchedTask         `json:"schedtaskpayload"`
+	RecoveryCommand string            `json:"recoverycommand"`
+	UpdateGUIDs     []string          `json:"guids"`
+	ChocoProgName   string            `json:"choco_prog_name"`
+	PendingActionPK int               `json:"pending_action_pk"`
 }
 
 var (
@@ -393,7 +392,7 @@ func (a *WindowsAgent) RunRPC() {
 				ret := codec.NewEncoderBytes(&resp, new(codec.MsgpackHandle))
 				ret.Encode("ok")
 				msg.Respond(resp)
-				out, _ := a.InstallWithChoco(p.ChocoProgName, p.ChocoProgVersion)
+				out, _ := a.InstallWithChoco(p.ChocoProgName)
 				results := map[string]string{"results": out}
 				url := fmt.Sprintf("/api/v3/%d/chocoresult/", p.PendingActionPK)
 				a.rClient.R().SetBody(results).Patch(url)

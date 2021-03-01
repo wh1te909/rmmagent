@@ -44,8 +44,8 @@ func (a *WindowsAgent) InstallChoco() {
 	a.rClient.R().SetBody(result).Post(url)
 }
 
-func (a *WindowsAgent) InstallWithChoco(name, version string) (string, error) {
-	out, err := CMD("choco.exe", []string{"install", name, "--version", version, "--yes"}, 900, false)
+func (a *WindowsAgent) InstallWithChoco(name string) (string, error) {
+	out, err := CMD("choco.exe", []string{"install", name, "--yes", "--force", "--force-dependencies"}, 1200, false)
 	if err != nil {
 		a.Logger.Errorln(err)
 		return err.Error(), err
