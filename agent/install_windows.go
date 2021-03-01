@@ -183,7 +183,7 @@ func (a *WindowsAgent) Install(i *Installer) {
 
 	a.Logger.Infoln("Installing mesh agent...")
 	a.Logger.Debugln("Mesh agent:", mesh)
-	meshOut, meshErr := CMD(mesh, []string{"-fullinstall"}, int(60), false)
+	meshOut, meshErr := CMD(mesh, []string{"-fullinstall"}, int(90), false)
 	if meshErr != nil {
 		fmt.Println(meshOut[0])
 		fmt.Println(meshOut[1])
@@ -191,8 +191,8 @@ func (a *WindowsAgent) Install(i *Installer) {
 	}
 
 	fmt.Println(meshOut)
-	a.Logger.Debugln("Sleeping for 10")
-	time.Sleep(10 * time.Second)
+	a.Logger.Debugln("Sleeping for 5")
+	time.Sleep(5 * time.Second)
 
 	meshSuccess := false
 	var meshNodeID string
