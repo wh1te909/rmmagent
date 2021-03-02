@@ -874,16 +874,32 @@ func (a *WindowsAgent) GetPython(force bool) {
 	rClient.SetRetryWaitTime(1 * time.Minute)
 	rClient.SetRetryMaxWaitTime(15 * time.Minute)
 
+	useAlternative := false
+
 	url := fmt.Sprintf("https://github.com/wh1te909/rmmagent/releases/download/v%s/%s", a.Version, archZip)
+	url2 := fmt.Sprintf("https://files.tacticalrmm.io/%s", archZip)
 	a.Logger.Debugln(url)
 	r, err := rClient.R().SetOutput(pyZip).Get(url)
 	if err != nil {
-		a.Logger.Errorln("Unable to download py3.zip:", err)
-		return
+		a.Logger.Errorln("Unable to download py3.zip from github, using alternative link.", err)
+		useAlternative = true
 	}
 	if r.IsError() {
-		a.Logger.Errorln("Unable to download py3.zip. Status code", r.StatusCode())
-		return
+		a.Logger.Errorln("Unable to download py3.zip from github, using alternative link. Status code", r.StatusCode())
+		useAlternative = true
+	}
+
+	if useAlternative {
+		a.Logger.Debugln(url2)
+		r1, err := rClient.R().SetOutput(pyZip).Get(url2)
+		if err != nil {
+			a.Logger.Errorln("Unable to download py3.zip:", err)
+			return
+		}
+		if r1.IsError() {
+			a.Logger.Errorln("Unable to download py3.zip. Status code", r.StatusCode())
+			return
+		}
 	}
 
 	err = Unzip(pyZip, a.ProgramDir)
