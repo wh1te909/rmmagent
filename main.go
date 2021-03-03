@@ -84,6 +84,8 @@ func main() {
 		a.RemoveSalt()
 	case "getpython":
 		a.GetPython(true)
+	case "runmigrations":
+		a.RunMigrations()
 	case "taskrunner":
 		if len(os.Args) < 5 || *taskPK == 0 {
 			return

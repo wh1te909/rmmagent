@@ -952,3 +952,9 @@ Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*'
 		a.Logger.Debugln(err)
 	}
 }
+
+// RunMigrations cleans up unused stuff from older agents
+func (a *WindowsAgent) RunMigrations() {
+	a.deleteOldTacticalServices()
+	CMD("schtasks.exe", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
+}

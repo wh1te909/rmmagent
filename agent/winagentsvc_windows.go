@@ -24,9 +24,6 @@ func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
 	time.Sleep(time.Duration(sleepDelay) * time.Second)
 
-	a.deleteOldTacticalServices()
-	CMD("schtasks", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
-
 	startup := []string{"hello", "osinfo", "winservices", "disks", "publicip", "software", "loggedonuser"}
 	for _, s := range startup {
 		a.CheckIn(s)
