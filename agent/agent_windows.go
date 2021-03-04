@@ -574,7 +574,7 @@ func (a *WindowsAgent) SyncMeshNodeID() {
 
 //RecoverMesh recovers mesh agent
 func (a *WindowsAgent) RecoverMesh() {
-	a.Logger.Debugln("Attempting mesh recovery on", a.Hostname)
+	a.Logger.Infoln("Attempting mesh recovery")
 	defer CMD("net", []string{"start", a.MeshSVC}, 60, false)
 
 	_, _ = CMD("net", []string{"stop", a.MeshSVC}, 60, false)
@@ -584,7 +584,7 @@ func (a *WindowsAgent) RecoverMesh() {
 
 //RecoverRPC recovers nats rpc service
 func (a *WindowsAgent) RecoverRPC() {
-	a.Logger.Debugln("Attempting rpc recovery on", a.Hostname)
+	a.Logger.Infoln("Attempting rpc recovery")
 	_, _ = CMD("net", []string{"stop", "tacticalrpc"}, 90, false)
 	time.Sleep(2 * time.Second)
 	_, _ = CMD("net", []string{"start", "tacticalrpc"}, 90, false)
@@ -957,4 +957,32 @@ Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*'
 func (a *WindowsAgent) RunMigrations() {
 	a.deleteOldTacticalServices()
 	CMD("schtasks.exe", []string{"/delete", "/TN", "TacticalRMM_fixmesh", "/f"}, 10, false)
+}
+
+func (a *WindowsAgent) CheckForRecovery() {
+	url := fmt.Sprintf("/api/v3/%s/recovery/", a.AgentID)
+	r, err := a.rClient.R().SetResult(&rmm.RecoveryAction{}).Get(url)
+
+	if err != nil {
+		a.Logger.Debugln("Recovery:", err)
+		return
+	}
+	if r.IsError() {
+		a.Logger.Debugln("Recovery status code:", r.StatusCode())
+		return
+	}
+
+	mode := r.Result().(*rmm.RecoveryAction).Mode
+	command := r.Result().(*rmm.RecoveryAction).ShellCMD
+
+	switch mode {
+	case "mesh":
+		a.RecoverMesh()
+	case "rpc":
+		a.RecoverRPC()
+	case "command":
+		a.RecoverCMD(command)
+	default:
+		return
+	}
 }

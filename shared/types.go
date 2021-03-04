@@ -2,6 +2,11 @@ package shared
 
 import "time"
 
+type RecoveryAction struct {
+	Mode     string `json:"mode"`
+	ShellCMD string `json:"shellcmd"`
+}
+
 type WinUpdateResult struct {
 	AgentID string       `json:"agent_id"`
 	Updates []WUAPackage `json:"wua_updates"`
