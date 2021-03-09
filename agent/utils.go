@@ -25,6 +25,7 @@ func (a *WindowsAgent) PublicIP() string {
 	client := resty.New()
 	client.SetTimeout(4 * time.Second)
 	urls := []string{"https://icanhazip.tacticalrmm.io/", "https://icanhazip.com", "https://ifconfig.co/ip"}
+	ip := "error"
 
 	for _, url := range urls {
 		r, err := client.R().Get(url)
@@ -32,15 +33,28 @@ func (a *WindowsAgent) PublicIP() string {
 			a.Logger.Debugln("PublicIP err", err)
 			continue
 		}
-		ip := StripAll(r.String())
+		ip = StripAll(r.String())
 		if !IsValidIP(ip) {
 			a.Logger.Debugln("PublicIP not valid", ip)
 			continue
 		}
+		v4 := net.ParseIP(ip)
+		if v4.To4() == nil {
+			r1, err := client.R().Get("https://ifconfig.me/ip")
+			if err != nil {
+				return ip
+			}
+			ipv4 := StripAll(r1.String())
+			if !IsValidIP(ipv4) {
+				continue
+			}
+			a.Logger.Debugln("Forcing ipv4:", ipv4)
+			return ipv4
+		}
 		a.Logger.Debugln("PublicIP return: ", ip)
-		return ip
+		break
 	}
-	return "error"
+	return ip
 }
 
 // GenerateAgentID creates and returns a unique agent id
