@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -145,10 +146,13 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 
 	content := []byte(code)
 
-	dir, err := ioutil.TempDir("", "trmm")
-	if err != nil {
-		a.Logger.Debugln(err)
-		return
+	dir := filepath.Join(os.TempDir(), "trmm")
+	if !FileExists(dir) {
+		err := os.Mkdir(dir, 0775)
+		if err != nil {
+			a.Logger.Errorln(err)
+			return
+		}
 	}
 	defer os.RemoveAll(dir)
 
