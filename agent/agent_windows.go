@@ -986,3 +986,14 @@ func (a *WindowsAgent) CheckForRecovery() {
 		return
 	}
 }
+
+func (a *WindowsAgent) CreateTRMMTempDir() {
+	// create the temp dir for running scripts
+	dir := filepath.Join(os.TempDir(), "trmm")
+	if !FileExists(dir) {
+		err := os.Mkdir(dir, 0775)
+		if err != nil {
+			a.Logger.Errorln(err)
+		}
+	}
+}

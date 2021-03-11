@@ -279,6 +279,9 @@ func (a *WindowsAgent) Install(i *Installer) {
 		nc.Close()
 	}
 
+	a.Logger.Debugln("Creating temp dir")
+	a.CreateTRMMTempDir()
+
 	a.Logger.Infoln("Installing services...")
 
 	svcCommands := [10][]string{
