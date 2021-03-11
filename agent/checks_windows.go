@@ -28,7 +28,7 @@ func (a *WindowsAgent) CheckRunner() {
 	for {
 		interval, err := a.GetCheckInterval()
 		if err == nil && !a.ChecksRunning() {
-			_, err = CMD(a.EXE, []string{"-m", "runchecks"}, 600, false)
+			_, err = CMD(a.EXE, []string{"-m", "checkrunner"}, 600, false)
 			if err != nil {
 				a.Logger.Errorln("Checkrunner RunChecks", err)
 			}
@@ -52,9 +52,15 @@ func (a *WindowsAgent) GetCheckInterval() (int, error) {
 	return interval, nil
 }
 
-func (a *WindowsAgent) RunChecks() error {
+func (a *WindowsAgent) RunChecks(force bool) error {
 	data := rmm.AllChecks{}
-	r, err := a.rClient.R().Get(fmt.Sprintf("/api/v3/%s/checkrunner/", a.AgentID))
+	var url string
+	if force {
+		url = fmt.Sprintf("/api/v3/%s/runchecks/", a.AgentID)
+	} else {
+		url = fmt.Sprintf("/api/v3/%s/checkrunner/", a.AgentID)
+	}
+	r, err := a.rClient.R().Get(url)
 	if err != nil {
 		a.Logger.Debugln(err)
 		return err
@@ -147,14 +153,6 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 	content := []byte(code)
 
 	dir := filepath.Join(os.TempDir(), "trmm")
-	if !FileExists(dir) {
-		err := os.Mkdir(dir, 0775)
-		if err != nil {
-			a.Logger.Errorln(err)
-			return
-		}
-	}
-	defer os.RemoveAll(dir)
 
 	const defaultExitCode = 1
 
@@ -175,13 +173,19 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 		ext = "*.bat"
 	}
 
-	tmpfn, _ := ioutil.TempFile(dir, ext)
+	tmpfn, err := ioutil.TempFile(dir, ext)
+	if err != nil {
+		a.Logger.Errorln(err)
+		return "", err.Error(), 85, err
+	}
+	defer os.Remove(tmpfn.Name())
+
 	if _, err := tmpfn.Write(content); err != nil {
-		a.Logger.Debugln(err)
+		a.Logger.Errorln(err)
 		return "", err.Error(), 85, err
 	}
 	if err := tmpfn.Close(); err != nil {
-		a.Logger.Debugln(err)
+		a.Logger.Errorln(err)
 		return "", err.Error(), 85, err
 	}
 

@@ -65,7 +65,9 @@ func main() {
 	case "winagentsvc":
 		a.RunAsService()
 	case "runchecks":
-		a.RunChecks()
+		a.RunChecks(true)
+	case "checkrunner":
+		a.RunChecks(false)
 	case "sysinfo":
 		a.GetWMI()
 	case "software":

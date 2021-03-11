@@ -2,6 +2,8 @@ package agent
 
 import (
 	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -19,7 +21,18 @@ func (a *WindowsAgent) RunAsService() {
 // WinAgentSvc tacticalagent windows nssm service
 func (a *WindowsAgent) WinAgentSvc() {
 	a.Logger.Infoln("Agent service started")
+
 	go a.GetPython(false)
+
+	// create the temp dir
+	dir := filepath.Join(os.TempDir(), "trmm")
+	if !FileExists(dir) {
+		err := os.Mkdir(dir, 0775)
+		if err != nil {
+			a.Logger.Errorln(err)
+		}
+	}
+
 	sleepDelay := randRange(14, 22)
 	a.Logger.Debugf("Sleeping for %v seconds", sleepDelay)
 	time.Sleep(time.Duration(sleepDelay) * time.Second)

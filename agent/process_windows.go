@@ -72,7 +72,7 @@ Out:
 		}
 
 		for _, arg := range p.Args {
-			if arg == "runchecks" {
+			if arg == "runchecks" || arg == "checkrunner" {
 				running = true
 				break Out
 			}
