@@ -153,6 +153,9 @@ func (a *WindowsAgent) RunScript(code string, shell string, args []string, timeo
 	content := []byte(code)
 
 	dir := filepath.Join(os.TempDir(), "trmm")
+	if !FileExists(dir) {
+		a.CreateTRMMTempDir()
+	}
 
 	const defaultExitCode = 1
 
