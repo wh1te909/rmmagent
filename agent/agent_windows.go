@@ -20,7 +20,7 @@ import (
 
 	ps "github.com/elastic/go-sysinfo"
 	"github.com/go-resty/resty/v2"
-	"github.com/gonutz/w32"
+	"github.com/gonutz/w32/v2"
 	nats "github.com/nats-io/nats.go"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -943,7 +943,6 @@ func (a *WindowsAgent) addDefenderExlusions() {
 	code := `
 Add-MpPreference -ExclusionPath 'C:\Program Files\TacticalAgent\*'
 Add-MpPreference -ExclusionPath 'C:\Windows\Temp\winagent-v*.exe'
-Add-MpPreference -ExclusionPath 'C:\Windows\Temp\tacticalrmm\*'
 Add-MpPreference -ExclusionPath 'C:\Windows\Temp\trmm\*'
 Add-MpPreference -ExclusionPath 'C:\Program Files\Mesh Agent\*'
 `

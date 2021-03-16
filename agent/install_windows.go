@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gonutz/w32"
+	"github.com/gonutz/w32/v2"
 	nats "github.com/nats-io/nats.go"
 	"golang.org/x/sys/windows/registry"
 )

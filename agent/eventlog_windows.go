@@ -8,7 +8,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/gonutz/w32"
+	"github.com/gonutz/w32/v2"
 	rmm "github.com/wh1te909/rmmagent/shared"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
