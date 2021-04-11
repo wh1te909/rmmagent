@@ -854,3 +854,31 @@ type Win32_USBController struct {
 	SystemName               string
 	TimeOfLastReset          time.Time
 }
+
+type Win32_VideoController struct {
+	AcceleratorCapabilities   []string
+	AdapterCompatibility      string
+	AdapterDACType            string
+	AdapterRAM                uint32
+	Availability              uint16
+	CapabilityDescriptions    []string
+	Caption                   string
+	CurrentRefreshRate        uint32
+	CurrentVerticalResolution uint32
+	Description               string
+	DeviceID                  string
+	DriverDate                time.Time
+	DriverVersion             string
+	InstallDate               time.Time
+	InstalledDisplayDrivers   string
+	MaxMemorySupported        uint32
+	MaxRefreshRate            uint32
+	MinRefreshRate            uint32
+	Name                      string
+	Status                    string
+	SystemCreationClassName   string
+	SystemName                string
+	TimeOfLastReset           time.Time
+	VideoModeDescription      string
+	VideoProcessor            string
+}

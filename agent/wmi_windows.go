@@ -476,6 +476,34 @@ func GetWin32_BaseBoard() ([]interface{}, error) {
 	return ret, nil
 }
 
+func GetWin32_VideoController() ([]interface{}, error) {
+	var dst []rmm.Win32_VideoController
+	ret := make([]interface{}, 0)
+
+	q := wmi.CreateQuery(&dst, "")
+	err := wmi.Query(q, &dst)
+	if err != nil {
+		return ret, err
+	}
+
+	for _, val := range dst {
+		b, err := json.Marshal(val)
+		if err != nil {
+			return ret, err
+		}
+		// this creates an extra unneeded array but keeping for now
+		// for backwards compatibility with the python agent
+		tmp := make([]interface{}, 0)
+		var un map[string]interface{}
+		if err := json.Unmarshal(b, &un); err != nil {
+			return ret, err
+		}
+		tmp = append(tmp, un)
+		ret = append(ret, tmp)
+	}
+	return ret, nil
+}
+
 func (a *WindowsAgent) GetWMI() {
 	wmiInfo := make(map[string]interface{})
 
@@ -539,6 +567,11 @@ func (a *WindowsAgent) GetWMI() {
 		a.Logger.Debugln(err)
 	}
 
+	graphics, err := GetWin32_VideoController()
+	if err != nil {
+		a.Logger.Debugln(err)
+	}
+
 	wmiInfo["comp_sys_prod"] = compSysProd
 	wmiInfo["comp_sys"] = compSys
 	wmiInfo["network_config"] = netAdaptConfig
@@ -551,6 +584,7 @@ func (a *WindowsAgent) GetWMI() {
 	wmiInfo["desktop_monitor"] = desktopMon
 	wmiInfo["cpu"] = cpu
 	wmiInfo["usb"] = usb
+	wmiInfo["graphics"] = graphics
 
 	payload := map[string]interface{}{"agent_id": a.AgentID, "sysinfo": wmiInfo}
 
