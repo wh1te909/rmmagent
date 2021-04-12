@@ -5,3 +5,5 @@
 *.zip
 tacticalrmm
 *.syso
+versioninfo.json
+build/
