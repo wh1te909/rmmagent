@@ -7,5 +7,5 @@ tacticalrmm
 *.syso
 versioninfo.json
 build/
-build.sh
+*.sh
 *.bat
